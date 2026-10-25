@@ -1,0 +1,7 @@
+{
+  "name": "baziness-fake-hub",
+  "private": true,
+  "type": "module",
+  "description": "In-memory Baziness platform API used by every SDK's tests.",
+  "bin": { "baziness-fake-hub": "./fake-hub.mjs" }
+}

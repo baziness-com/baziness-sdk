@@ -1,0 +1,44 @@
+{
+  "name": "@baziness/server",
+  "version": "1.0.0",
+  "description": "Baziness platform SDK for game servers: client auth, player sessions with refresh tokens, link codes, Gita coins, purchases and trusted analytics.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baziness-com/baziness-sdk.git",
+    "directory": "server-node"
+  },
+  "homepage": "https://github.com/baziness-com/baziness-sdk/tree/main/server-node#readme",
+  "bugs": {
+    "url": "https://github.com/baziness-com/baziness-sdk/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test \"build-test/test/*.test.js\"",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "~5.9.3"
+  }
+}

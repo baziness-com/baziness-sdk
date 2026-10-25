@@ -1,0 +1,40 @@
+# JavaScript / TypeScript
+**/node_modules/
+**/dist/
+**/build-test/
+*.tgz
+
+# Java
+server-java/out/
+server-java/target/
+*.class
+
+# .NET / Unity
+**/bin/
+**/obj/
+unity/**/Library/
+unity/**/Logs/
+unity/**/Temp/
+unity/**/UserSettings/
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+.DS_Store
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local
+*.p12
+*.pfx
+*.pem
+*.key
+
+# Logs and coverage
+*.log
+coverage/

@@ -1,0 +1,30 @@
+# @baziness/server
+
+Baziness for your game **server** (Node 18+). It keeps the client secret and the players' refresh
+tokens, gives your players' devices 15-minute tokens and link codes, gives Gita coins, reports
+purchases and sends trusted analytics (sessions, device data, sign-ins).
+
+## Install
+
+```bash
+npm install @baziness/server
+```
+
+## Quick start
+
+```ts
+import { BazinessServer } from '@baziness/server';
+
+const baziness = BazinessServer.fromEnv(process.env, { refreshTokens: myStore, logger: console });
+// BAZINESS_ENVIRONMENT=staging|production, BAZINESS_CLIENT_ID, BAZINESS_CLIENT_SECRET
+
+const session = await baziness.players.signIn({ deviceId, platform: 'Web', store: 'Direct', userId, linkCode });
+const { code } = await baziness.players.linkCode(session.userId);       // open a Baziness page
+await baziness.coins.add({ userId: session.userId, amount: 50, grantKey: `match:${matchId}` });
+await baziness.purchases.record({ userId, amount: 49000, gateway: 'cafebazaar', orderId, sku });
+baziness.analytics.sessions.start(userId, { device });                   // on connect
+baziness.analytics.sessions.end(userId);                                 // on disconnect
+await baziness.close();                                                   // on shutdown
+```
+
+`npm test` runs 28 tests against the shared fake platform in `../tools/fake-hub`.

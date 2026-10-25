@@ -1,0 +1,31 @@
+{
+  "name": "com.baziness.sdk",
+  "version": "1.0.0",
+  "displayName": "Baziness SDK",
+  "description": "Baziness platform for Unity games: Baziness pages (sign-in, profile, rewards) in a web view, Gita coin balance, link-code sign-in from other games, install attribution, device info and player analytics. Your game server uses the Baziness server SDK.",
+  "unity": "2021.3",
+  "license": "Apache-2.0",
+  "documentationUrl": "https://github.com/baziness-com/baziness-sdk/tree/main/unity/com.baziness.sdk#readme",
+  "changelogUrl": "https://github.com/baziness-com/baziness-sdk/blob/main/unity/com.baziness.sdk/CHANGELOG.md",
+  "licensesUrl": "https://github.com/baziness-com/baziness-sdk/blob/main/LICENSE",
+  "author": {
+    "name": "Baziness",
+    "url": "https://baziness.com"
+  },
+  "dependencies": {
+    "com.unity.modules.unitywebrequest": "1.0.0"
+  },
+  "keywords": ["baziness", "gita coin", "sso", "analytics"],
+  "samples": [
+    {
+      "displayName": "Quick start",
+      "description": "A MonoBehaviour that starts the SDK, shows the balance and opens the reward page.",
+      "path": "Samples~/QuickStart"
+    },
+    {
+      "displayName": "gree unity-webview page view",
+      "description": "Shows Baziness pages in gree's WebViewObject (Android, iOS, macOS editor). Import it when your project has unity-webview.",
+      "path": "Samples~/GreeWebView"
+    }
+  ]
+}

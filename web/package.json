@@ -1,0 +1,44 @@
+{
+  "name": "@baziness/web",
+  "version": "1.0.0",
+  "description": "Baziness platform SDK for web games: Baziness pages (sign-in, profile, rewards), Gita coin balance, first-touch attribution, device info and player analytics.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baziness-com/baziness-sdk.git",
+    "directory": "web"
+  },
+  "homepage": "https://github.com/baziness-com/baziness-sdk/tree/main/web#readme",
+  "bugs": {
+    "url": "https://github.com/baziness-com/baziness-sdk/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./global": "./dist/baziness.global.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/global.ts --bundle --format=iife --target=es2019 --minify --sourcemap --outfile=dist/baziness.global.js",
+    "test": "tsc -p tsconfig.test.json && node --test \"build-test/test/*.test.js\"",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "~5.9.3",
+    "@types/node": "^22.20.5"
+  }
+}
