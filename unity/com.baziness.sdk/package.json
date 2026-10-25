@@ -1,6 +1,6 @@
 {
   "name": "com.baziness.sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Baziness SDK",
   "description": "Baziness platform for Unity games: Baziness pages (sign-in, profile, rewards) in a web view, Gita coin balance, link-code sign-in from other games, install attribution, device info and player analytics. Your game server uses the Baziness server SDK.",
   "unity": "2021.3",

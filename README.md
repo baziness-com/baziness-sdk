@@ -67,11 +67,11 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 
 | Package | Where | How |
 | --- | --- | --- |
-| `@baziness/server`, `@baziness/web` | npm | bump `version`, `npm publish` (runs build + tests) |
+| `@baziness/server`, `@baziness/web` | npm | push a matching `vX.Y.Z` tag; CI publishes with npm OIDC |
 | `baziness-server-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
-| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.0.0` |
+| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.0.1` |
 
-Keep the four versions equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
+Keep all five version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 
 ## Security and contributing
 

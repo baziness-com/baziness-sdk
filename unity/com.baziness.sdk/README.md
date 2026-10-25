@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 In Package Manager, choose **Add package from git URL**, then enter:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.0.0`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.0.1`
 
 ## Quick start
 
