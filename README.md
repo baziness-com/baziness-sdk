@@ -63,6 +63,8 @@ Java (asserted in both test suites).
 
 ## Releasing
 
+See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automated tag workflow.
+
 | Package | Where | How |
 | --- | --- | --- |
 | `@baziness/server`, `@baziness/web` | npm | bump `version`, `npm publish` (runs build + tests) |

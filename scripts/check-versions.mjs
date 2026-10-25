@@ -20,11 +20,15 @@ const versions = new Map([
 
 const expected = versions.values().next().value;
 const mismatches = [...versions].filter(([, version]) => version !== expected);
+const requested = process.argv[2];
 
 for (const [name, version] of versions) console.log(`${name}: ${version}`);
 
 if (mismatches.length) {
   console.error(`SDK versions do not all match ${expected}.`);
+  process.exitCode = 1;
+} else if (requested && requested !== expected) {
+  console.error(`Requested version ${requested} does not match SDK version ${expected}.`);
   process.exitCode = 1;
 } else {
   console.log(`All SDK versions match ${expected}.`);
