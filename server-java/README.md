@@ -5,12 +5,12 @@ Yatzy's, and any other JVM server. Same API and behaviour as `@baziness/server`.
 
 ## Install
 
-Download `baziness-server-1.0.1.jar` from the
+Download `baziness-sdk-java-1.0.1.jar` from the
 [v1.0.1 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.0.1) and add
 it to your server's classpath. The JAR has no runtime dependencies and targets Java 8.
 
 ```bash
-javac -cp baziness-server-1.0.1.jar YourGameServer.java
+javac -cp baziness-sdk-java-1.0.1.jar YourGameServer.java
 ```
 
 ## Quick start

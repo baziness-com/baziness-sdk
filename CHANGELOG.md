@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Give every GitHub Release artifact a consistent `baziness-sdk-{platform}` filename.
+
 ## [1.0.1] - 2026-10-25
 
 - Validate tokenless npm publishing from GitHub Actions and GitHub-hosted Java/Unity artifacts.

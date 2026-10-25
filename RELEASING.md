@@ -2,7 +2,13 @@
 
 All SDKs share one semantic version and are released from a signed `vX.Y.Z` tag. The release
 workflow verifies and tests every SDK, publishes both npm packages, and then creates a GitHub
-Release containing Node, Web, Java, and Unity artifacts with SHA-256 checksums.
+Release containing clearly named JavaScript server, JavaScript web, Java, and Unity artifacts with
+SHA-256 checksums:
+
+- `baziness-sdk-js-server-X.Y.Z.tgz`
+- `baziness-sdk-js-web-X.Y.Z.tgz`
+- `baziness-sdk-java-X.Y.Z.jar`
+- `baziness-sdk-unity-X.Y.Z.tgz`
 
 ## One-time registry setup
 
