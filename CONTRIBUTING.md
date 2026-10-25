@@ -8,7 +8,6 @@ Requirements:
 
 - Node.js 18.17 or newer
 - JDK 17 or newer (the Java SDK targets Java 8)
-- Maven 3.9 or newer
 - .NET SDK 8 for the Unity core tests
 
 Run the complete verification suite from the repository root:

@@ -68,7 +68,7 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | Package | Where | How |
 | --- | --- | --- |
 | `@baziness/server`, `@baziness/web` | npm | bump `version`, `npm publish` (runs build + tests) |
-| `com.baziness:baziness-server` | Maven Central | bump `SDK_VERSION` in `BazinessServer.java` and `pom.xml`, then publish with the `release` Maven profile |
+| `baziness-server-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
 | `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.0.0` |
 
 Keep the four versions equal. `./scripts/check-versions.mjs` verifies them locally and in CI.

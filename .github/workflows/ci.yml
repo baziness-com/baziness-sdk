@@ -38,7 +38,7 @@ jobs:
       - run: npm pack --dry-run
 
   java-server:
-    name: Java server SDK
+    name: Java server SDK JAR
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -49,10 +49,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: maven
       - run: ./build.sh
-        working-directory: server-java
-      - run: mvn --batch-mode --no-transfer-progress clean verify
         working-directory: server-java
 
   web:
