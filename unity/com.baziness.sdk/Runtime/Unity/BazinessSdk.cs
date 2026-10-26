@@ -169,13 +169,6 @@ namespace Baziness
             return Coins.Get();
         }
 
-        /// <summary>A player event (gameplay, UI, funnel). Sessions, device data and purchases are your server's job.</summary>
-        public static bool Track(string eventKey, double? value = null, IDictionary<string, object> props = null)
-        {
-            RequireInitialized();
-            return Analytics.Track(eventKey, value, props);
-        }
-
         /// <summary>Open a Baziness page over the game with a fresh link code from your server.</summary>
         public static async Task OpenPage(BazinessPage page, Dictionary<string, string> query = null)
         {
@@ -202,7 +195,7 @@ namespace Baziness
             openPage = page;
             openedAt = Time.realtimeSinceStartup;
             options.PageView.Open(url, raw => _ = OnPageMessage(raw), OnPageClosed);
-            Analytics.Track("baziness:page:open", null, new Dictionary<string, object> { ["page"] = PageName(page) });
+            Analytics.Record("baziness:page:open", null, new Dictionary<string, object> { ["page"] = PageName(page) });
             PageOpened?.Invoke(page);
         }
 
@@ -279,13 +272,13 @@ namespace Baziness
                     case PageMessageType.Login:
                         var answer = message.Data != null ? await options.Backend.Login(message.Data) : null;
                         await sessions.Get(true);
-                        Analytics.Track("baziness:page:login", null, new Dictionary<string, object> { ["page"] = page });
+                        Analytics.Record("baziness:page:login", null, new Dictionary<string, object> { ["page"] = page });
                         LoggedIn?.Invoke(answer);
                         if (message.Data != null) ClosePage();
                         break;
                     case PageMessageType.Logout:
                         await options.Backend.Logout();
-                        Analytics.Track("baziness:page:logout", null, new Dictionary<string, object> { ["page"] = page });
+                        Analytics.Record("baziness:page:logout", null, new Dictionary<string, object> { ["page"] = page });
                         sessions.Clear();
                         ClosePage();
                         LoggedOut?.Invoke();
@@ -311,7 +304,7 @@ namespace Baziness
             if (!openPage.HasValue) return;
             var page = openPage.Value;
             openPage = null;
-            Analytics.Track("baziness:page:close", Math.Round(Time.realtimeSinceStartup - openedAt),
+            Analytics.Record("baziness:page:close", Math.Round(Time.realtimeSinceStartup - openedAt),
                 new Dictionary<string, object> { ["page"] = PageName(page) });
             PageClosed?.Invoke(page);
         }

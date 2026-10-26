@@ -33,8 +33,8 @@ public final class ServerAnalytics {
     private static final int MAX_PROP_VALUE = 512;
     private static final long[] BACKOFF_MS = {5000, 30000, 120000, 300000};
 
-    /** One event's optional parts. */
-    public static final class Event {
+    /** One event's optional parts (the SDK's own events). */
+    static final class Event {
         Double value;
         Map<String, Object> props;
         String sessionId;
@@ -124,12 +124,89 @@ public final class ServerAnalytics {
         return sessions;
     }
 
-    public boolean track(long userId, String eventKey) {
+    // ── The events Baziness analytics knows (admin panel: Growth → Events), for results your server
+    // decides. Each goes with the player's open session, if any, and returns false when it was
+    // dropped (analytics disabled). Null arguments are left out.
+
+    /**
+     * The player started a purchase ({@code iap_purchase_started}); its completion is
+     * {@code purchases().record}. Price in Toman; gateway: cafebazaar, myket, googleplay, appstore,
+     * direct or baziness_pay.
+     */
+    public boolean purchaseStarted(long userId, String sku, double price, String gateway) {
+        return game(userId, "iap_purchase_started", price, "sku", sku, "gateway", gateway);
+    }
+
+    /** The purchase was cancelled or failed ({@code iap_purchase_failed}); reason: cancelled, error or pending. */
+    public boolean purchaseFailed(long userId, String sku, String gateway, String reason) {
+        return game(userId, "iap_purchase_failed", null, "sku", sku, "gateway", gateway, "reason", reason);
+    }
+
+    /** An ad was shown ({@code ad_impression}); format: rewarded, interstitial, banner, … */
+    public boolean adImpression(long userId, String network, String placement, String format) {
+        return game(userId, "ad_impression", null, "network", network, "placement", placement, "format", format);
+    }
+
+    /** Paid ad revenue for an impression ({@code ad_revenue}), in Toman, e.g. from your ad network's callback. */
+    public boolean adRevenue(long userId, String network, String placement, String format, double revenue) {
+        return game(userId, "ad_revenue", revenue, "network", network, "placement", placement, "format", format);
+    }
+
+    /** Onboarding started ({@code tutorial_begin}); step may be null. */
+    public boolean tutorialBegin(long userId, String step) {
+        return game(userId, "tutorial_begin", null, "step", step);
+    }
+
+    /** Onboarding finished ({@code tutorial_complete}); step may be null. */
+    public boolean tutorialComplete(long userId, String step) {
+        return game(userId, "tutorial_complete", null, "step", step);
+    }
+
+    /** A level, match or round started ({@code level_start}). */
+    public boolean levelStart(long userId, String level) {
+        return game(userId, "level_start", null, "level", level);
+    }
+
+    /** A level, match or round won ({@code level_complete}); score and duration may be null. */
+    public boolean levelComplete(long userId, String level, Double score, Double durationSeconds) {
+        return game(userId, "level_complete", score, "level", level, "duration_s", durationSeconds);
+    }
+
+    /** A level, match or round lost ({@code level_fail}); score, duration and reason may be null. */
+    public boolean levelFail(long userId, String level, Double score, Double durationSeconds, String reason) {
+        return game(userId, "level_fail", score, "level", level, "duration_s", durationSeconds, "reason", reason);
+    }
+
+    /** In-game currency or items gained ({@code resource_earn}); item and source may be null. */
+    public boolean resourceEarn(long userId, String currency, double amount, String item, String source) {
+        return game(userId, "resource_earn", amount, "currency", currency, "item", item, "source", source);
+    }
+
+    /** In-game currency or items spent ({@code resource_spend}); item and sink may be null. */
+    public boolean resourceSpend(long userId, String currency, double amount, String item, String sink) {
+        return game(userId, "resource_spend", amount, "currency", currency, "item", item, "sink", sink);
+    }
+
+    private boolean game(long userId, String eventKey, Double value, Object... props) {
+        Event event = new Event().sessionId(sessions.current(userId));
+        if (value != null) {
+            event.value(value);
+        }
+        for (int i = 0; i + 1 < props.length; i += 2) {
+            event.prop((String) props[i], props[i + 1]);
+        }
+        return track(userId, eventKey, event);
+    }
+
+    boolean track(long userId, String eventKey) {
         return track(userId, eventKey, new Event());
     }
 
-    /** Queue one event about one of your players. Returns false when it was dropped (invalid or disabled). */
-    public boolean track(long userId, String eventKey, Event event) {
+    /**
+     * Queue one event about one of your players: the methods above, and what the SDK sends itself
+     * (sessions, sign-ins, purchases). Returns false when it was dropped (invalid or disabled).
+     */
+    boolean track(long userId, String eventKey, Event event) {
         if (!options.enabled || closed) {
             return false;
         }

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { BazinessError } from './errors.js';
 import type { Logger, Transport } from './http.js';
-import type { DeviceInfo } from './types.js';
+import type { DeviceInfo, PaymentGateway } from './types.js';
 import type { WireEventBatchResponse, WireServerEvent } from './wire.js';
 
 export interface AnalyticsOptions {
@@ -23,6 +23,18 @@ export interface AnalyticsOptions {
 
 export type PropValue = string | number | boolean | null | undefined;
 
+/** Where a purchase is paid: a store, your own gateway (`direct`), or Baziness Pay. */
+export type FunnelGateway = PaymentGateway | 'baziness_pay';
+
+/** Which ad was shown, as your ad network names it. */
+export interface AdPlacement {
+  network: string;
+  placement: string;
+  /** `rewarded`, `interstitial`, `banner`, … */
+  format: string;
+}
+
+/** @internal */
 export interface TrackOptions {
   value?: number;
   props?: Record<string, PropValue>;
@@ -78,7 +90,96 @@ export class ServerAnalytics {
     this.sessions = new SessionTracker(this, options.heartbeatMs ?? 60_000, options.idleTimeoutMs ?? 120_000);
   }
 
-  /** Queue one event about one of your players. Returns false when it was dropped (invalid or disabled). */
+  // ── The events Baziness analytics knows (admin panel: Growth → Events), for results your server
+  // decides. Each goes with the player's open session, if any, and returns false when it was
+  // dropped (analytics disabled).
+
+  /** The player started a purchase (`iap_purchase_started`). Its completion is `purchases.record`. */
+  purchaseStarted(userId: number, purchase: { sku: string; price: number; gateway: FunnelGateway }): boolean {
+    return this.game(userId, 'iap_purchase_started', purchase.price, { sku: purchase.sku, gateway: purchase.gateway });
+  }
+
+  /** The purchase was cancelled or failed (`iap_purchase_failed`). */
+  purchaseFailed(
+    userId: number,
+    purchase: { sku: string; gateway: FunnelGateway; reason: 'cancelled' | 'error' | 'pending' },
+  ): boolean {
+    return this.game(userId, 'iap_purchase_failed', undefined, {
+      sku: purchase.sku,
+      gateway: purchase.gateway,
+      reason: purchase.reason,
+    });
+  }
+
+  /** An ad was shown (`ad_impression`). */
+  adImpression(userId: number, ad: AdPlacement): boolean {
+    return this.game(userId, 'ad_impression', undefined, { network: ad.network, placement: ad.placement, format: ad.format });
+  }
+
+  /** Paid ad revenue for an impression (`ad_revenue`), in Toman, e.g. from your ad network's server callback. */
+  adRevenue(userId: number, ad: AdPlacement & { revenue: number }): boolean {
+    return this.game(userId, 'ad_revenue', ad.revenue, { network: ad.network, placement: ad.placement, format: ad.format });
+  }
+
+  /** Onboarding started (`tutorial_begin`). */
+  tutorialBegin(userId: number, step?: string): boolean {
+    return this.game(userId, 'tutorial_begin', undefined, { step });
+  }
+
+  /** Onboarding finished (`tutorial_complete`). */
+  tutorialComplete(userId: number, step?: string): boolean {
+    return this.game(userId, 'tutorial_complete', undefined, { step });
+  }
+
+  /** A level, match or round started (`level_start`). */
+  levelStart(userId: number, level: string | number): boolean {
+    return this.game(userId, 'level_start', undefined, { level });
+  }
+
+  /** A level, match or round won (`level_complete`). */
+  levelComplete(userId: number, result: { level: string | number; score?: number; durationSeconds?: number }): boolean {
+    return this.game(userId, 'level_complete', result.score, { level: result.level, duration_s: result.durationSeconds });
+  }
+
+  /** A level, match or round lost (`level_fail`). */
+  levelFail(
+    userId: number,
+    result: { level: string | number; score?: number; durationSeconds?: number; reason?: string },
+  ): boolean {
+    return this.game(userId, 'level_fail', result.score, {
+      level: result.level,
+      duration_s: result.durationSeconds,
+      reason: result.reason,
+    });
+  }
+
+  /** In-game currency or items gained (`resource_earn`). */
+  resourceEarn(userId: number, change: { currency: string; amount: number; item?: string; source?: string }): boolean {
+    return this.game(userId, 'resource_earn', change.amount, {
+      currency: change.currency,
+      item: change.item,
+      source: change.source,
+    });
+  }
+
+  /** In-game currency or items spent (`resource_spend`). */
+  resourceSpend(userId: number, change: { currency: string; amount: number; item?: string; sink?: string }): boolean {
+    return this.game(userId, 'resource_spend', change.amount, {
+      currency: change.currency,
+      item: change.item,
+      sink: change.sink,
+    });
+  }
+
+  private game(userId: number, eventKey: string, value: number | undefined, props: Record<string, PropValue>): boolean {
+    return this.track(userId, eventKey, { value, props, sessionId: this.sessions.current(userId) });
+  }
+
+  /**
+   * Queue one event about one of your players: the methods above, and what the SDK sends itself
+   * (sessions, sign-ins, purchases). Returns false when it was dropped (invalid or disabled).
+   * @internal
+   */
   track(userId: number, eventKey: string, options: TrackOptions = {}): boolean {
     if (!this.enabled || this.closed) return false;
     const problem = validate(userId, eventKey, options.value);

@@ -272,13 +272,13 @@ describe('purchases and analytics', () => {
     await assert.rejects(baziness.purchases.record({ userId: 1, amount: 10, gateway: 'paypal' as never, orderId: 'x' }), /gateway/);
   });
 
-  it('reports sign-ins, sessions with device data and custom events through the trusted channel', async () => {
+  it('reports sign-ins, sessions with device data and game events through the trusted channel', async () => {
     const { baziness } = sdk(hub);
     const { userId } = await baziness.players.signIn(device);
     const sessionId = baziness.analytics.sessions.start(userId, {
       device: { model: 'Pixel 8', os: 'Android', osVersion: '15', screenWidth: 1080, screenHeight: 2400, sdk: 'unity' },
     });
-    baziness.analytics.track(userId, 'level_complete', { value: 1200, props: { level: 7 }, sessionId });
+    baziness.analytics.levelComplete(userId, { level: 7, score: 1200 });
     baziness.analytics.sessions.end(userId);
     assert.equal(baziness.analytics.track(userId, 'Bad Name'), false);
     await baziness.analytics.flush();
@@ -292,7 +292,10 @@ describe('purchases and analytics', () => {
     const deviceInfo = events.find((e) => e.eventKey === 'device_info')!;
     assert.equal(deviceInfo.props?.screen, '1080x2400');
     assert.equal(deviceInfo.sessionId, sessionId);
-    assert.equal(events.find((e) => e.eventKey === 'level_complete')!.props?.level, '7');
+    const level = events.find((e) => e.eventKey === 'level_complete')!;
+    assert.equal(level.props?.level, '7');
+    assert.equal(level.value, 1200);
+    assert.equal(level.sessionId, sessionId, 'a named event goes with the open session');
   });
 
   it('ensure keeps one session across repeated session requests', async () => {
@@ -320,7 +323,7 @@ describe('purchases and analytics', () => {
     const { baziness } = sdk(hub, { http: { retryBaseMs: 1, maxAttempts: 1, breakerThreshold: 0 } });
     const { userId } = await baziness.players.signIn(device);
     await control(hub, 'fail', { path: '/api/analytics/server-events/batch', status: 503, times: 1 });
-    baziness.analytics.track(userId, 'tutorial_complete');
+    baziness.analytics.tutorialComplete(userId);
     await baziness.analytics.flush();
     assert.equal(baziness.analytics.pending, 2, 'kept after the 503');
     await baziness.close(1000); // close sends the rest without waiting for the backoff

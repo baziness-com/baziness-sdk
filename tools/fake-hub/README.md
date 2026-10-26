@@ -2,8 +2,9 @@
 
 An in-memory stand-in for the Baziness platform API, used by every SDK's tests so they all agree
 on one behaviour. It implements the contract the SDKs are written against, including the parts
-that are easy to get wrong: refresh-token rotation (`refresh_token_rotated` within 30 s, `reused`
-after), one-time link codes that join two games' users into one account, `add-coin` idempotency
+that are easy to get wrong: access tokens without refresh tokens for game servers
+(`v2/client/access-token`, `create-user` with `accessTokenOnly`), refresh-token rotation for
+integrations from 1.0 (`refresh_token_rotated` within 30 s, `reused` after), one-time link codes that join two games' users into one account, `add-coin` idempotency
 (`400 add resource failed`, the answer carries the amount credited), server-only event names refused
 on the device path, and players of another game refused one by one.
 

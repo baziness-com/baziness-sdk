@@ -26,7 +26,7 @@ await baziness.start();                       // sends ?linkCode= and attributio
 baziness.on('close', () => refreshBalance());
 await baziness.openPage('shop');
 const balance = await baziness.coins.balance();
-baziness.analytics.track('level_complete', { value: 1200, props: { level: 7 } });
+baziness.analytics.levelComplete({ level: 7, score: 1200 });   // one method per event
 ```
 
 Without a bundler: `<script src="baziness.global.js"></script>` → `window.Baziness.BazinessWeb`.

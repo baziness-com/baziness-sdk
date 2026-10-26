@@ -150,7 +150,7 @@ export class BazinessWeb {
     this.openPageName = page;
     this.openedAt = Date.now();
     this.overlay.open(url, () => this.pageClosed(page));
-    this.analytics.track('baziness:page:open', { props: { page } });
+    this.analytics.record('baziness:page:open', { props: { page } });
     this.emit('open', page);
   }
 
@@ -197,7 +197,7 @@ export class BazinessWeb {
         try {
           const result = message.token ? await this.options.backend.login(message.token) : undefined;
           await this.sessions.get(true);
-          this.analytics.track('baziness:page:login', { props: { page } });
+          this.analytics.record('baziness:page:login', { props: { page } });
           this.emit('login', { result });
           if (message.token) this.closePage();
         } catch (error) {
@@ -211,7 +211,7 @@ export class BazinessWeb {
         } catch (error) {
           this.emit('error', error as Error);
         }
-        this.analytics.track('baziness:page:logout', { props: { page } });
+        this.analytics.record('baziness:page:logout', { props: { page } });
         this.sessions.clear();
         this.closePage();
         this.emit('logout', undefined);
@@ -244,7 +244,7 @@ export class BazinessWeb {
   }
 
   private pageClosed(page: string): void {
-    this.analytics.track('baziness:page:close', {
+    this.analytics.record('baziness:page:close', {
       value: Math.round((Date.now() - this.openedAt) / 1000),
       props: { page },
     });

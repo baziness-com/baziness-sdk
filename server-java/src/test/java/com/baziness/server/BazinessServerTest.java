@@ -136,8 +136,7 @@ public final class BazinessServerTest {
                 device.screenHeight = 2400;
                 String sessionId = baziness.analytics().sessions().ensure(userId, device);
                 equal(baziness.analytics().sessions().ensure(userId, null), sessionId);
-                baziness.analytics().track(userId, "level_complete",
-                        new ServerAnalytics.Event().value(1200).prop("level", 7).sessionId(sessionId));
+                baziness.analytics().levelComplete(userId, "7", 1200.0, null);
                 baziness.purchases().record(new Purchases.Purchase(userId, 49000, "cafebazaar", "order-1").sku("gems_100"));
                 baziness.analytics().sessions().end(userId);
                 check(!baziness.analytics().track(userId, "Bad Name"), "invalid name dropped");
@@ -155,7 +154,7 @@ public final class BazinessServerTest {
                 BazinessServer baziness = sdk(new MemoryRefreshTokenStore(), 12, "fake-client-secret-12", http);
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;
                 control("fail", "{\"path\":\"/api/analytics/server-events/batch\",\"status\":503,\"times\":1}");
-                baziness.analytics().track(userId, "tutorial_complete");
+                baziness.analytics().tutorialComplete(userId, null);
                 baziness.analytics().flush();
                 equal(baziness.analytics().pending(), 2);
                 baziness.close();

@@ -44,7 +44,7 @@ namespace Baziness.Samples
 
         public void OnLevelComplete(int level, int score)
         {
-            BazinessSdk.Track("level_complete", score, new Dictionary<string, object> { ["level"] = level });
+            BazinessSdk.Analytics.LevelComplete(level.ToString(), score);
         }
 
         private async void RefreshBalance()

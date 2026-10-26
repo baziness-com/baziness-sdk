@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 In Package Manager, choose **Add package from git URL**, then enter:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.0.1`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.1.0`
 
 ## Quick start
 
@@ -20,7 +20,7 @@ var session = await BazinessSdk.StartAsync();
 BazinessSdk.PageClosed += _ => RefreshBalance();
 await BazinessSdk.OpenPage(BazinessPage.Shop);
 long balance = await BazinessSdk.GetCoinBalanceAsync();
-BazinessSdk.Track("level_complete", 1200, new Dictionary<string, object> { ["level"] = 7 });
+BazinessSdk.Analytics.LevelComplete("7", 1200);   // one method per event
 ```
 
 Samples (Package Manager → Samples): **Quick start**, **gree unity-webview page view**.

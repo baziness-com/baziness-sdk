@@ -72,7 +72,7 @@ async function gameServer() {
   return { backend, calls, userId: () => userId };
 }
 
-const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.0.0' } as const;
+const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.1.0' } as const;
 
 describe('launch parameters', () => {
   it('keeps the first touch, takes the link code once and cleans the address', () => {
@@ -171,9 +171,10 @@ describe('session, coins and analytics against the platform', () => {
     const store = memoryStore();
     const analytics = new DeviceAnalytics(hub.apiBase, (force) => sessions.token(force), store, 'com.example.game', fetch, { flushIntervalMs: 60_000 });
     analytics.sessionId = 'session-1';
-    assert.equal(analytics.track('level_complete', { value: 1200, props: { level: 7 } }), true);
-    assert.equal(analytics.track('session_start'), false, 'server-only');
-    assert.equal(analytics.track('Level Complete'), false, 'invalid name');
+    assert.equal(analytics.levelComplete({ level: 7, score: 1200 }), true);
+    assert.equal(analytics.purchaseStarted({ sku: 'gems_100', price: 49_000, gateway: 'cafebazaar' }), true);
+    assert.equal(analytics.record('session_start'), false, 'server-only');
+    assert.equal(analytics.record('Level Complete'), false, 'invalid name');
     assert.ok(store.get('baziness:events:com.example.game'), 'persisted before sending');
 
     // A reload: a new instance picks the queue up from storage.
@@ -186,10 +187,14 @@ describe('session, coins and analytics against the platform', () => {
     assert.equal(store.get('baziness:events:com.example.game'), null);
 
     const state = await control<{ deviceEvents: Array<{ eventKey: string; value?: number; props?: Record<string, string>; sessionId?: string }> }>('state');
-    assert.equal(state.deviceEvents.length, 1);
+    assert.equal(state.deviceEvents.length, 2);
     assert.equal(state.deviceEvents[0]!.eventKey, 'level_complete');
+    assert.equal(state.deviceEvents[0]!.value, 1200);
     assert.equal(state.deviceEvents[0]!.props?.level, '7');
     assert.equal(state.deviceEvents[0]!.sessionId, 'session-1');
+    assert.equal(state.deviceEvents[1]!.eventKey, 'iap_purchase_started');
+    assert.equal(state.deviceEvents[1]!.value, 49_000);
+    assert.deepEqual(state.deviceEvents[1]!.props, { sku: 'gems_100', gateway: 'cafebazaar' });
   });
 
   it('keeps the queue while the platform is down', async () => {
@@ -198,7 +203,7 @@ describe('session, coins and analytics against the platform', () => {
     await sessions.get();
     await control('fail', { path: '/api/analytics/events/batch', status: 503, times: 1 });
     const analytics = new DeviceAnalytics(hub.apiBase, (force) => sessions.token(force), memoryStore(), 'g', fetch, { flushIntervalMs: 60_000 });
-    analytics.track('tutorial_complete');
+    analytics.tutorialComplete();
     await analytics.flush();
     assert.equal(analytics.pending, 1);
     await analytics.flush(true); // a page hide sends at once, despite the backoff

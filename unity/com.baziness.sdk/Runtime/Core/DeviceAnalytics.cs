@@ -5,10 +5,29 @@ using System.Threading.Tasks;
 
 namespace Baziness
 {
+    /// <summary>Where a purchase is paid: a store, your own gateway (<c>Direct</c>), or Baziness Pay.</summary>
+    public enum PurchaseGateway
+    {
+        CafeBazaar,
+        Myket,
+        GooglePlay,
+        AppStore,
+        Direct,
+        BazinessPay
+    }
+
+    /// <summary>Why a purchase did not complete.</summary>
+    public enum PurchaseFailure
+    {
+        Cancelled,
+        Error,
+        Pending
+    }
+
     /// <summary>
-    /// Player analytics from the device: gameplay, UI and funnel events (<c>level_complete</c>,
-    /// <c>iap_purchase_started</c>, <c>shop:offer:clicked</c>, …), sent with the player's 15-minute
-    /// token to <c>analytics/events/batch</c>. Queued in storage so a crash or going offline loses
+    /// Player analytics from the device: one method per event Baziness analytics knows (the purchase
+    /// funnel, ads, onboarding, levels, in-game currency), sent with the player's 15-minute token to
+    /// <c>analytics/events/batch</c>. Queued in storage so a crash or going offline loses
     /// nothing; sent every 30 s, at 100 events and when the app goes to the background (call
     /// <see cref="Tick"/> regularly and <see cref="Flush"/> on pause); retried with backoff.
     /// </summary>
@@ -60,8 +79,94 @@ namespace Baziness
 
         public int Pending => queue.Count;
 
-        /// <summary>Queue one event. Returns false when it was dropped (invalid, server-only or disabled).</summary>
-        public bool Track(string eventKey, double? value = null, IDictionary<string, object> props = null)
+        // ── The events Baziness analytics knows (admin panel: Growth → Events) ──
+        // Each returns false when the event was dropped (analytics disabled).
+
+        /// <summary>The player tapped buy (<c>iap_purchase_started</c>). The completion comes from your server or Baziness Pay.</summary>
+        public bool PurchaseStarted(string sku, double price, PurchaseGateway gateway)
+        {
+            return Record("iap_purchase_started", price,
+                new Dictionary<string, object> { ["sku"] = sku, ["gateway"] = GatewayName(gateway) });
+        }
+
+        /// <summary>The purchase was cancelled or failed (<c>iap_purchase_failed</c>).</summary>
+        public bool PurchaseFailed(string sku, PurchaseGateway gateway, PurchaseFailure reason)
+        {
+            return Record("iap_purchase_failed", null, new Dictionary<string, object>
+            {
+                ["sku"] = sku, ["gateway"] = GatewayName(gateway), ["reason"] = reason.ToString().ToLowerInvariant()
+            });
+        }
+
+        /// <summary>An ad was shown (<c>ad_impression</c>). <paramref name="format"/>: rewarded, interstitial, banner, …</summary>
+        public bool AdImpression(string network, string placement, string format)
+        {
+            return Record("ad_impression", null, Ad(network, placement, format));
+        }
+
+        /// <summary>Your ad SDK reported paid revenue for an impression (<c>ad_revenue</c>), in Toman.</summary>
+        public bool AdRevenue(string network, string placement, string format, double revenue)
+        {
+            return Record("ad_revenue", revenue, Ad(network, placement, format));
+        }
+
+        /// <summary>Onboarding started (<c>tutorial_begin</c>).</summary>
+        public bool TutorialBegin(string step = null)
+        {
+            return Record("tutorial_begin", null, new Dictionary<string, object> { ["step"] = step });
+        }
+
+        /// <summary>Onboarding finished (<c>tutorial_complete</c>).</summary>
+        public bool TutorialComplete(string step = null)
+        {
+            return Record("tutorial_complete", null, new Dictionary<string, object> { ["step"] = step });
+        }
+
+        /// <summary>A level, match or round started (<c>level_start</c>).</summary>
+        public bool LevelStart(string level)
+        {
+            return Record("level_start", null, new Dictionary<string, object> { ["level"] = level });
+        }
+
+        /// <summary>A level, match or round won (<c>level_complete</c>).</summary>
+        public bool LevelComplete(string level, double? score = null, double? durationSeconds = null)
+        {
+            return Record("level_complete", score,
+                new Dictionary<string, object> { ["level"] = level, ["duration_s"] = durationSeconds });
+        }
+
+        /// <summary>A level, match or round lost (<c>level_fail</c>).</summary>
+        public bool LevelFail(string level, double? score = null, double? durationSeconds = null, string reason = null)
+        {
+            return Record("level_fail", score, new Dictionary<string, object>
+            {
+                ["level"] = level, ["duration_s"] = durationSeconds, ["reason"] = reason
+            });
+        }
+
+        /// <summary>In-game currency or items gained (<c>resource_earn</c>).</summary>
+        public bool ResourceEarn(string currency, double amount, string item = null, string source = null)
+        {
+            return Record("resource_earn", amount, new Dictionary<string, object>
+            {
+                ["currency"] = currency, ["item"] = item, ["source"] = source
+            });
+        }
+
+        /// <summary>In-game currency or items spent (<c>resource_spend</c>).</summary>
+        public bool ResourceSpend(string currency, double amount, string item = null, string sink = null)
+        {
+            return Record("resource_spend", amount, new Dictionary<string, object>
+            {
+                ["currency"] = currency, ["item"] = item, ["sink"] = sink
+            });
+        }
+
+        /// <summary>
+        /// Queue one event: the methods above, and the page events the SDK sends itself. Returns false
+        /// when it was dropped (invalid, server-only or disabled).
+        /// </summary>
+        internal bool Record(string eventKey, double? value = null, IDictionary<string, object> props = null)
         {
             if (!Enabled) return false;
             if (eventKey == null || !EventName.IsMatch(eventKey))
@@ -189,6 +294,16 @@ namespace Baziness
             {
                 return null;
             }
+        }
+
+        private static Dictionary<string, object> Ad(string network, string placement, string format)
+        {
+            return new Dictionary<string, object> { ["network"] = network, ["placement"] = placement, ["format"] = format };
+        }
+
+        private static string GatewayName(PurchaseGateway gateway)
+        {
+            return gateway == PurchaseGateway.BazinessPay ? "baziness_pay" : gateway.ToString().ToLowerInvariant();
         }
 
         private static Dictionary<string, object> Props(IDictionary<string, object> props)
