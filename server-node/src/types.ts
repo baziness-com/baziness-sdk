@@ -76,9 +76,9 @@ export type SignInMethod =
   | 'created'
   /** The player arrived with a link code (from the Baziness app or another game): same person. */
   | 'link_code'
-  /** A known player's session was renewed with its refresh token. */
+  /** A known player got a fresh access token. */
   | 'refresh'
-  /** A known player had no live session; a new one was started. */
+  /** Not produced since 1.1 (there are no player sessions to start); kept for compatibility. */
   | 'new_session';
 
 export interface SignInResult extends PlayerSession {
@@ -88,9 +88,9 @@ export interface SignInResult extends PlayerSession {
 }
 
 /**
- * Where the game keeps each player's refresh token. The token is a password: store it on your
- * server only (a `baziness_sessions` table keyed by the Baziness user id, or Redis), never log it,
- * never send it to a device. `set(userId, null)` removes it.
+ * Where an integration from 1.0 kept each player's refresh token. Since 1.1 your server keeps no
+ * token (its client secret gets a new access token whenever needed); if you still pass a store,
+ * `players.logout` revokes and removes what is left in it, and nothing else uses it.
  */
 export interface RefreshTokenStore {
   get(userId: number): Promise<string | null>;

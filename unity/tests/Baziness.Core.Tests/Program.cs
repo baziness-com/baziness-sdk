@@ -106,23 +106,27 @@ internal static class Program
             var storage = new MemoryQueueStorage();
             var warnings = new List<string>();
             var analytics = new DeviceAnalytics(new ClientHttp(), apiBase, sessions.Token, storage) { SessionId = "s-1", Warn = warnings.Add };
-            Check(analytics.Track("level_complete", 1200, new Dictionary<string, object> { ["level"] = 7 }), "accepted");
-            Check(!analytics.Track("session_start"), "server-only refused");
-            Check(!analytics.Track("Level Complete"), "invalid name refused");
+            Check(analytics.LevelComplete("7", 1200), "accepted");
+            Check(analytics.PurchaseStarted("gems_100", 49000, PurchaseGateway.BazinessPay), "accepted");
+            Check(!analytics.Record("session_start"), "server-only refused");
+            Check(!analytics.Record("Level Complete"), "invalid name refused");
             Equal(warnings.Count, 2);
             Check(storage.Load() != null, "persisted before sending");
 
             var reloaded = new DeviceAnalytics(new ClientHttp(), apiBase, sessions.Token, storage) { SessionId = "s-1" };
-            Equal(reloaded.Pending, 1);
+            Equal(reloaded.Pending, 2);
             await reloaded.Flush();
             Equal(reloaded.Pending, 0);
             Equal(storage.Load(), null);
             var events = (List<object>)MiniJson.Object(await Control("state", null))["deviceEvents"];
-            Equal(events.Count, 1);
+            Equal(events.Count, 2);
             var sent = MiniJson.Object(events[0]);
             Equal(MiniJson.String(sent, "eventKey"), "level_complete");
             Equal(MiniJson.String(MiniJson.Object(sent["props"]), "level"), "7");
             Equal(MiniJson.String(sent, "sessionId"), "s-1");
+            var purchase = MiniJson.Object(events[1]);
+            Equal(MiniJson.String(purchase, "eventKey"), "iap_purchase_started");
+            Equal(MiniJson.String(MiniJson.Object(purchase["props"]), "gateway"), "baziness_pay");
         });
         await Test("analytics: kept while the platform is down, sent on pause", async () =>
         {
@@ -131,7 +135,7 @@ internal static class Program
             await sessions.Get();
             await Control("fail", "{\"path\":\"/api/analytics/events/batch\",\"status\":503,\"times\":1}");
             var analytics = new DeviceAnalytics(new ClientHttp(), apiBase, sessions.Token, new MemoryQueueStorage());
-            analytics.Track("tutorial_complete");
+            analytics.TutorialComplete();
             await analytics.Flush();
             Equal(analytics.Pending, 1);
             await analytics.Flush(true);

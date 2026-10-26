@@ -2,9 +2,21 @@ import { readJson, uuid, type KeyValueStore } from './storage.js';
 
 export type PropValue = string | number | boolean | null | undefined;
 
+/** @internal */
 export interface TrackOptions {
   value?: number;
   props?: Record<string, PropValue>;
+}
+
+/** Where a purchase is paid: a store, your own gateway (`direct`), or Baziness Pay. */
+export type PurchaseGateway = 'cafebazaar' | 'myket' | 'googleplay' | 'appstore' | 'direct' | 'baziness_pay';
+
+/** Which ad was shown, as your ad SDK names it. */
+export interface AdPlacement {
+  network: string;
+  placement: string;
+  /** `rewarded`, `interstitial`, `banner`, … */
+  format: string;
 }
 
 export interface DeviceAnalyticsOptions {
@@ -44,8 +56,8 @@ const BACKOFF_MS = [5_000, 30_000, 120_000, 300_000];
 export type TokenSource = (force: boolean) => Promise<string>;
 
 /**
- * Player analytics from the device: gameplay, UI and funnel events (`level_complete`,
- * `iap_purchase_started`, `shop:offer:clicked`, …), sent with the player's 15-minute token to
+ * Player analytics from the device: one method per event Baziness analytics knows (the purchase
+ * funnel, ads, onboarding, levels, in-game currency), sent with the player's 15-minute token to
  * `analytics/events/batch`. Queued in storage so a reload or going offline loses nothing; sent every
  * 30 s, at 100 events and when the page is hidden; retried with backoff on 429/5xx/offline.
  */
@@ -79,8 +91,90 @@ export class DeviceAnalytics {
     }
   }
 
-  /** Queue one event. Returns false when it was dropped (invalid, server-only or disabled). */
-  track(eventKey: string, options: TrackOptions = {}): boolean {
+  // ── The events Baziness analytics knows (admin panel: Growth → Events) ───────────────────────
+  // Each returns false when the event was dropped (analytics disabled).
+
+  /** The player tapped buy (`iap_purchase_started`). The completion comes from your server or Baziness Pay. */
+  purchaseStarted(purchase: { sku: string; price: number; gateway: PurchaseGateway }): boolean {
+    return this.record('iap_purchase_started', {
+      value: purchase.price,
+      props: { sku: purchase.sku, gateway: purchase.gateway },
+    });
+  }
+
+  /** The purchase was cancelled or failed (`iap_purchase_failed`). */
+  purchaseFailed(purchase: { sku: string; gateway: PurchaseGateway; reason: 'cancelled' | 'error' | 'pending' }): boolean {
+    return this.record('iap_purchase_failed', {
+      props: { sku: purchase.sku, gateway: purchase.gateway, reason: purchase.reason },
+    });
+  }
+
+  /** An ad was shown (`ad_impression`). */
+  adImpression(ad: AdPlacement): boolean {
+    return this.record('ad_impression', { props: { network: ad.network, placement: ad.placement, format: ad.format } });
+  }
+
+  /** Your ad SDK reported paid revenue for an impression (`ad_revenue`), in Toman. */
+  adRevenue(ad: AdPlacement & { revenue: number }): boolean {
+    return this.record('ad_revenue', {
+      value: ad.revenue,
+      props: { network: ad.network, placement: ad.placement, format: ad.format },
+    });
+  }
+
+  /** Onboarding started (`tutorial_begin`). */
+  tutorialBegin(step?: string): boolean {
+    return this.record('tutorial_begin', { props: { step } });
+  }
+
+  /** Onboarding finished (`tutorial_complete`). */
+  tutorialComplete(step?: string): boolean {
+    return this.record('tutorial_complete', { props: { step } });
+  }
+
+  /** A level, match or round started (`level_start`). */
+  levelStart(level: string | number): boolean {
+    return this.record('level_start', { props: { level } });
+  }
+
+  /** A level, match or round won (`level_complete`). */
+  levelComplete(result: { level: string | number; score?: number; durationSeconds?: number }): boolean {
+    return this.record('level_complete', {
+      value: result.score,
+      props: { level: result.level, duration_s: result.durationSeconds },
+    });
+  }
+
+  /** A level, match or round lost (`level_fail`). */
+  levelFail(result: { level: string | number; score?: number; durationSeconds?: number; reason?: string }): boolean {
+    return this.record('level_fail', {
+      value: result.score,
+      props: { level: result.level, duration_s: result.durationSeconds, reason: result.reason },
+    });
+  }
+
+  /** In-game currency or items gained (`resource_earn`). */
+  resourceEarn(change: { currency: string; amount: number; item?: string; source?: string }): boolean {
+    return this.record('resource_earn', {
+      value: change.amount,
+      props: { currency: change.currency, item: change.item, source: change.source },
+    });
+  }
+
+  /** In-game currency or items spent (`resource_spend`). */
+  resourceSpend(change: { currency: string; amount: number; item?: string; sink?: string }): boolean {
+    return this.record('resource_spend', {
+      value: change.amount,
+      props: { currency: change.currency, item: change.item, sink: change.sink },
+    });
+  }
+
+  /**
+   * Queue one event: the methods above, and the page events the SDK sends itself. Returns false
+   * when it was dropped (invalid, server-only or disabled).
+   * @internal
+   */
+  record(eventKey: string, options: TrackOptions = {}): boolean {
     if (!this.enabled) return false;
     if (!EVENT_NAME_PATTERN.test(eventKey)) {
       console.warn(`[baziness] event "${eventKey}" dropped: name must be 1-128 of a-z 0-9 _ : . -`);

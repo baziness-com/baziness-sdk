@@ -7,14 +7,12 @@ import java.util.Map;
  * thread-safe. Calls block, so make them from a worker thread, not from a network I/O thread.
  *
  * <pre>
- * BazinessServer baziness = BazinessServer.builder(Environment.STAGING, clientId, clientSecret)
- *         .refreshTokens(myStore)
- *         .build();
+ * BazinessServer baziness = BazinessServer.builder(Environment.STAGING, clientId, clientSecret).build();
  * SignInResult session = baziness.players().signIn(new SignInRequest(deviceId, "Android", "CafeBazaar").userId(saved));
  * </pre>
  */
 public final class BazinessServer {
-    public static final String SDK_VERSION = "1.0.1";
+    public static final String SDK_VERSION = "1.1.0";
 
     private final Environment environment;
     private final String apiBase;
@@ -123,7 +121,10 @@ public final class BazinessServer {
             this.clientSecret = clientSecret;
         }
 
-        /** Where each player's refresh token is kept. Required for signIn / session / logout. */
+        /**
+         * Not needed since 1.1: your server keeps no player token. Pass the store of a 1.0 integration
+         * and {@code players().logout} ends the sessions left in it.
+         */
         public Builder refreshTokens(RefreshTokenStore store) {
             this.refreshTokens = store;
             return this;

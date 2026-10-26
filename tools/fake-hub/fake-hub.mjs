@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // An in-memory stand-in for the Baziness platform API, implementing the contract the SDKs are
-// written against (client auth, v2 users with refresh-token rotation, link codes, coins,
-// purchases, analytics). Every SDK's tests run against it, so they all agree on one behaviour.
+// written against (client auth, v2 users with access tokens alone or with refresh-token rotation,
+// link codes, coins, purchases, analytics). Every SDK's tests run against it, so they all agree on
+// one behaviour.
 //
 //   node fake-hub.mjs [port]          → prints "fake-hub listening on <port>"
 //
@@ -11,6 +12,7 @@
 
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 
 const CLIENTS = new Map([
   [12, { secret: 'fake-client-secret-12', name: 'example' }],
@@ -76,6 +78,20 @@ function pairBody(accessToken, refreshToken) {
 function userSession(user) {
   const tokens = issuePair(user.userId);
   return { userId: user.userId, token: tokens.accessToken, isLinkedToAccount: isLinked(user), tokens };
+}
+
+// An access token alone (v2/client/access-token, create-user with accessTokenOnly): no session,
+// no refresh token. Game servers ask again with their client secret.
+function accessOnlySession(user) {
+  const expiresAt = Date.now() + ACCESS_TOKEN_MS;
+  const accessToken = jwt({ sub: String(user.userId), role: 'user', token_use: 'access', exp: Math.floor(expiresAt / 1000) });
+  state.accessTokens.set(accessToken, { userId: user.userId, expiresAt });
+  return {
+    userId: user.userId,
+    token: accessToken,
+    isLinkedToAccount: isLinked(user),
+    accessTokenExpiresAt: new Date(expiresAt).toISOString(),
+  };
 }
 
 const isLinked = (user) => user.accountId !== null && state.accounts.get(user.accountId)?.phone != null;
@@ -311,9 +327,16 @@ async function handle(req, res) {
     if (!body.deviceId) return fail(res, 400, 'deviceId is required');
     const result = createUser(clientId, body);
     if (result.error) return fail(res, 400, result.error);
-    return sendJson(res, 200, userSession(result.user));
+    return sendJson(res, 200, body.accessTokenOnly ? accessOnlySession(result.user) : userSession(result.user));
   }
-  let match = path.match(/^\/api\/v2\/client\/get-user-token\/(\d+)$/);
+  let match = path.match(/^\/api\/v2\/client\/access-token\/(\d+)$/);
+  if (match && req.method === 'POST') {
+    const user = ownUser(match[1]);
+    if (!user) return fail(res, 403, 'access denied');
+    if (user.suspended) return fail(res, 403, 'account_suspended');
+    return sendJson(res, 200, accessOnlySession(user));
+  }
+  match = path.match(/^\/api\/v2\/client\/get-user-token\/(\d+)$/);
   if (match && req.method === 'POST') {
     const user = ownUser(match[1]);
     if (!user) return fail(res, 403, 'access denied');
@@ -407,7 +430,8 @@ export function startFakeHub(port = 0) {
 export const FAKE_CLIENT = { clientId: 12, clientSecret: 'fake-client-secret-12' };
 export const FAKE_OTHER_CLIENT = { clientId: 13, clientSecret: 'fake-client-secret-13' };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL, not `file://${argv[1]}`: on Windows the script path has a drive letter and backslashes.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const hub = await startFakeHub(Number(process.argv[2] ?? 0));
   console.log(`fake-hub listening on ${hub.port}`);
 }

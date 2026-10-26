@@ -44,24 +44,26 @@ public final class BazinessServerTest {
                 Map<String, Object> value = Json.object(Json.parse("{\"a\":[1,2.5,true,null],\"b\":\"x\\\"\\u00e9\"}"));
                 equal(Json.write(value), "{\"a\":[1,2.5,true,null],\"b\":\"x\\\"é\"}");
             });
-            test("creates a player, then renews with the stored refresh token", () -> {
-                MemoryRefreshTokenStore store = new MemoryRefreshTokenStore();
+            test("creates a player, then gets a new access token; the server keeps no token", () -> {
                 Attribution attribution = new Attribution();
                 attribution.utmSource = "instagram";
                 attribution.campaignCode = "spring";
-                SignInResult first = sdk(store).players().signIn(
+                SignInResult first = sdk(null).players().signIn(
                         new SignInRequest("phone-1", "Android", "CafeBazaar").attribution(attribution));
                 equal(first.method, SignInResult.Method.CREATED);
-                String saved = store.get(first.userId);
-                check(saved != null && saved.startsWith("rt1."), "refresh token saved");
+                check(first.accessToken != null && first.accessTokenExpiresAt != null, "an access token");
+                equal(Json.number(Json.object(control("state", null)), "liveSessions"), 0L);
                 Map<String, Object> user = Json.object(users().get(0));
                 equal(Json.write(user.get("attribution")), "{\"utmSource\":\"instagram\",\"linkCode\":\"spring\"}");
 
-                SignInResult second = sdk(store).players().signIn(
+                // A fresh SDK (another server, or after a restart) has no cached token: it asks again.
+                SignInResult second = sdk(null).players().signIn(
                         new SignInRequest("phone-1", "Android", "CafeBazaar").userId(first.userId));
                 equal(second.method, SignInResult.Method.REFRESH);
                 equal(second.userId, first.userId);
-                check(!saved.equals(store.get(first.userId)), "refresh token rotated");
+                check(!second.accessToken.equals(first.accessToken), "a new access token");
+                equal(requests("/api/v2/client/access-token/"), 1);
+                equal(requests("/api/auth/refresh") + requests("/api/v2/client/get-user-token/"), 0);
             });
             test("joins a player arriving with a link code to the same person", () -> {
                 BazinessServer yatzy = sdk(new MemoryRefreshTokenStore(), 13, "fake-client-secret-13");
@@ -79,23 +81,26 @@ public final class BazinessServerTest {
                 equal(result.method, SignInResult.Method.CREATED);
                 check(result.linkCodeRejected, "linkCodeRejected");
             });
-            test("new session after a revoked refresh token; suspended account is reported", () -> {
+            test("logout ends the session a 1.0 store kept; suspended account is reported", () -> {
                 MemoryRefreshTokenStore store = new MemoryRefreshTokenStore();
                 BazinessServer baziness = sdk(store);
                 SignInResult player = baziness.players().signIn(new SignInRequest("d", "Web", "Direct"));
-                baziness.players().revoke(store.get(player.userId));
-                equal(sdk(store).players().session(player.userId).method, SignInResult.Method.NEW_SESSION);
+                // What 1.0 did: a token pair, with the refresh token kept by the game.
+                store.set(player.userId, baziness.players().newSession(player.userId).refreshToken);
+                equal(Json.number(Json.object(control("state", null)), "liveSessions"), 1L);
+                baziness.players().logout(player.userId);
+                check(store.get(player.userId) == null, "refresh token removed");
+                equal(Json.number(Json.object(control("state", null)), "liveSessions"), 0L);
                 control("suspend", "{\"userId\":" + player.userId + "}");
                 try {
-                    sdk(store).players().session(player.userId);
+                    sdk(null).players().session(player.userId);
                     check(false, "suspended account must throw");
                 } catch (BazinessException e) {
                     equal(e.code(), "account_suspended");
                 }
             });
             test("verifies a page token, gives link codes and logs out", () -> {
-                MemoryRefreshTokenStore store = new MemoryRefreshTokenStore();
-                BazinessServer baziness = sdk(store);
+                BazinessServer baziness = sdk(null);
                 SignInResult player = baziness.players().signIn(new SignInRequest("d", "Web", "Direct"));
                 Players.VerifiedToken verified = baziness.players().verifyToken(player.accessToken);
                 check(verified.valid && verified.userId == player.userId, "page token verified");
@@ -103,7 +108,8 @@ public final class BazinessServerTest {
                 check(!baziness.players().linkCode(player.userId).code.equals(baziness.players().linkCode(player.userId).code),
                         "a new code per page");
                 baziness.players().logout(player.userId);
-                check(store.get(player.userId) == null, "refresh token forgotten");
+                check(!baziness.players().session(player.userId).accessToken.equals(player.accessToken),
+                        "after logout the next session asks the platform again");
             });
             test("pays a grant once and re-authenticates after the client token expires", () -> {
                 BazinessServer baziness = sdk(new MemoryRefreshTokenStore());
@@ -130,8 +136,7 @@ public final class BazinessServerTest {
                 device.screenHeight = 2400;
                 String sessionId = baziness.analytics().sessions().ensure(userId, device);
                 equal(baziness.analytics().sessions().ensure(userId, null), sessionId);
-                baziness.analytics().track(userId, "level_complete",
-                        new ServerAnalytics.Event().value(1200).prop("level", 7).sessionId(sessionId));
+                baziness.analytics().levelComplete(userId, "7", 1200.0, null);
                 baziness.purchases().record(new Purchases.Purchase(userId, 49000, "cafebazaar", "order-1").sku("gems_100"));
                 baziness.analytics().sessions().end(userId);
                 check(!baziness.analytics().track(userId, "Bad Name"), "invalid name dropped");
@@ -149,7 +154,7 @@ public final class BazinessServerTest {
                 BazinessServer baziness = sdk(new MemoryRefreshTokenStore(), 12, "fake-client-secret-12", http);
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;
                 control("fail", "{\"path\":\"/api/analytics/server-events/batch\",\"status\":503,\"times\":1}");
-                baziness.analytics().track(userId, "tutorial_complete");
+                baziness.analytics().tutorialComplete(userId, null);
                 baziness.analytics().flush();
                 equal(baziness.analytics().pending(), 2);
                 baziness.close();
@@ -166,6 +171,16 @@ public final class BazinessServerTest {
     }
 
     // ── helpers ──
+
+    private static int requests(String pathPrefix) throws Exception {
+        int count = 0;
+        for (Object request : (List<?>) Json.object(control("state", null)).get("requests")) {
+            if (Json.string(Json.object(request), "path").startsWith(pathPrefix)) {
+                count++;
+            }
+        }
+        return count;
+    }
 
     private static BazinessServer sdk(RefreshTokenStore store) {
         return sdk(store, 12, "fake-client-secret-12");

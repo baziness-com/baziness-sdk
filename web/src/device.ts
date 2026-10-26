@@ -1,6 +1,6 @@
 import { uuid, type KeyValueStore } from './storage.js';
 
-export const SDK_VERSION = '1.0.0';
+export const SDK_VERSION = '1.1.0';
 
 /** What the SDK knows about the player's device. Send it to your server with the session request. */
 export interface DeviceInfo {

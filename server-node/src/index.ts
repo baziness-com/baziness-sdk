@@ -19,7 +19,7 @@ export type { AddCoinsInput, AddCoinsResult } from './coins.js';
 export { Purchases } from './purchases.js';
 export type { RecordPurchaseInput } from './purchases.js';
 export { EVENT_NAME_PATTERN, ServerAnalytics, SessionTracker, deviceProps, stableEventId } from './analytics.js';
-export type { AnalyticsOptions, PropValue, SessionStartOptions, TrackOptions } from './analytics.js';
+export type { AdPlacement, AnalyticsOptions, FunnelGateway, PropValue, SessionStartOptions } from './analytics.js';
 export { MemoryRefreshTokenStore } from './types.js';
 export type {
   Attribution,

@@ -38,16 +38,17 @@ export interface HubState {
   liveSessions: number;
 }
 
+/** An SDK on the fake hub. No refresh-token store, as since 1.1; pass `refreshTokens` to test a 1.0 integration. */
 export function sdk(hub: FakeHub, overrides: Partial<BazinessServerOptions> = {}) {
-  const refreshTokens = new MemoryRefreshTokenStore();
   const baziness = new BazinessServer({
     environment: 'staging',
     ...fake.FAKE_CLIENT,
     apiBaseUrl: hub.apiBase,
-    refreshTokens,
     http: { retryBaseMs: 10, deadlineMs: 5000 },
     analytics: { flushIntervalMs: 60_000 },
     ...overrides,
   });
-  return { baziness, refreshTokens };
+  return { baziness };
 }
+
+export { MemoryRefreshTokenStore };
