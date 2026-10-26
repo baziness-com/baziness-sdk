@@ -11,6 +11,7 @@ import type {
   Store,
 } from './types.js';
 import type {
+  WireAccessTokenSession,
   WireAccountData,
   WireAttribution,
   WireLinkCode,
@@ -61,20 +62,16 @@ export interface AccountData {
   isActive: boolean;
 }
 
-const SESSION_OVER = new Set<string>([
-  ErrorCodes.sessionRevoked,
-  ErrorCodes.refreshTokenExpired,
-  ErrorCodes.invalidRefreshToken,
-  ErrorCodes.refreshTokenReused,
-]);
 /** Hand a cached access token out only while it has at least this long left. */
 const MIN_TOKEN_LIFE_MS = 60_000;
 const MAX_CACHED_SESSIONS = 10_000;
 
 /**
- * Steps 2 and 3 of the flow: Baziness users for your players, their sessions (15-minute access
- * tokens renewed with refresh tokens kept on your server), link codes for Baziness pages, and
- * verifying tokens that come back from a page.
+ * Steps 2 and 3 of the flow: Baziness users for your players, their 15-minute access tokens, link
+ * codes for Baziness pages, and verifying tokens that come back from a page.
+ *
+ * Your server keeps no token: its client secret is enough to get a new access token for any of its
+ * players (`v2/client/access-token`), so there is no refresh token to store, rotate or leak.
  */
 export class Players {
   private readonly cache = new Map<number, PlayerSession>();
@@ -82,6 +79,7 @@ export class Players {
 
   constructor(
     private readonly transport: Transport,
+    /** Only for integrations from 1.0, which kept refresh tokens: logout ends that leftover session. */
     private readonly store: RefreshTokenStore | undefined,
     private readonly analytics: ServerAnalytics,
     private readonly logger: Logger,
@@ -91,19 +89,18 @@ export class Players {
 
   /**
    * The one call for "a player's device came online". Creates the Baziness user the first time (or
-   * when the player arrived with a link code), otherwise renews their session. Saves the newest
-   * refresh token in your store and reports `auth_login`.
+   * when the player arrived with a link code), otherwise gets a fresh access token for them. Reports
+   * `auth_login` when a user was created or joined through a link code.
    *
    * Compare the returned `userId` with the one you saved: when it belongs to **another** of your
    * players, it is the same person on another device — switch this device to that player.
    */
   async signIn(input: SignInInput): Promise<SignInResult> {
-    const store = this.requireStore();
     let linkCodeRejected = false;
     if (input.linkCode || !input.userId) {
       try {
-        const session = await this.create(input);
-        return await this.keep(store, session, input.linkCode ? 'link_code' : 'created', false);
+        const session = await this.createPlayer(input);
+        return this.keep(session, input.linkCode ? 'link_code' : 'created', false);
       } catch (error) {
         if (!(input.linkCode && isCode(error, ErrorCodes.invalidLinkCode))) throw error;
         // Expired, already used or meant for another game: carry on as if no code was sent.
@@ -111,8 +108,8 @@ export class Players {
         this.logger.info('[baziness] link code rejected; continuing without it');
       }
       if (!input.userId) {
-        const session = await this.create({ ...input, linkCode: null });
-        return this.keep(store, session, 'created', true);
+        const session = await this.createPlayer({ ...input, linkCode: null });
+        return this.keep(session, 'created', true);
       }
     }
     const result = await this.session(input.userId);
@@ -121,9 +118,8 @@ export class Players {
 
   /**
    * A valid access token for a known player: the cached one while it has a minute left, otherwise a
-   * refresh (one at a time per player). Falls back to a new session when the refresh token is
-   * missing or the session ended. Throws {@link BazinessError} `account_suspended` (403) for a blocked
-   * account.
+   * new one (one request at a time per player). Throws {@link BazinessError} `account_suspended`
+   * (403) for a blocked account.
    */
   async session(userId: number): Promise<SignInResult> {
     const cached = this.cache.get(userId);
@@ -132,7 +128,9 @@ export class Players {
     }
     let pending = this.inFlight.get(userId);
     if (!pending) {
-      pending = this.renew(userId).finally(() => this.inFlight.delete(userId));
+      pending = this.accessToken(userId)
+        .then((session) => this.keep(session, 'refresh', false))
+        .finally(() => this.inFlight.delete(userId));
       this.inFlight.set(userId, pending);
     }
     return pending;
@@ -166,17 +164,20 @@ export class Players {
     return { valid: Boolean(answer.isValid) && answer.userId > 0, userId: answer.isValid ? answer.userId : 0 };
   }
 
-  /** End the player's session (the page sent `logout`) and forget their refresh token. */
+  /**
+   * The page sent `logout`: forget the player's cached token. A refresh token that an integration
+   * from 1.0 still keeps in `refreshTokens` is revoked and removed.
+   */
   async logout(userId: number): Promise<void> {
-    const store = this.requireStore();
     this.cache.delete(userId);
-    const refreshToken = await store.get(userId);
+    if (!this.store) return;
+    const refreshToken = await this.store.get(userId);
     if (refreshToken) {
       await this.revoke(refreshToken).catch((error: unknown) =>
         this.logger.warn(`[baziness] logout: ${(error as Error).message}`),
       );
     }
-    await store.set(userId, null);
+    await this.store.set(userId, null);
   }
 
   /** The player's Baziness account (phone, name), or null when they have not signed in. */
@@ -191,9 +192,28 @@ export class Players {
     return answer ?? null;
   }
 
-  // ── Low level: one platform call each; you keep the refresh token yourself ───
+  // ── Low level: one platform call each ─────────────────────────────────────────
 
-  /** `v2/client/create-user`. */
+  /**
+   * `v2/client/access-token/{id}`: a 15-minute access token for one of your players, no refresh
+   * token. Ask again when it runs out; {@link session} caches it for you.
+   */
+  async accessToken(userId: number): Promise<PlayerSession> {
+    const answer = await this.transport.request<WireAccessTokenSession>({
+      operation: 'accessToken',
+      method: 'POST',
+      path: `/v2/client/access-token/${userId}`,
+      auth: 'client',
+      // Issues a token and nothing else: safe to repeat.
+      idempotent: true,
+    });
+    return fromAccessTokenSession(answer);
+  }
+
+  /**
+   * `v2/client/create-user` with a token pair (a refresh token you keep yourself). Kept for
+   * integrations from 1.0; {@link signIn} keeps no refresh token.
+   */
   async create(input: CreatePlayerInput): Promise<SessionWithRefreshToken> {
     const answer = await this.transport.request<WireUserSession>({
       operation: 'createUser',
@@ -213,7 +233,7 @@ export class Players {
     return fromUserSession(answer);
   }
 
-  /** `v2/client/get-user-token/{id}`: a new session for a known player. */
+  /** `v2/client/get-user-token/{id}`: a session with a refresh token (integrations from 1.0). */
   async newSession(userId: number): Promise<SessionWithRefreshToken> {
     const answer = await this.transport.request<WireUserSession>({
       operation: 'newSession',
@@ -260,53 +280,28 @@ export class Players {
 
   // ── Internals ─────────────────────────────────────────────────────────────────
 
-  private async renew(userId: number): Promise<SignInResult> {
-    const store = this.requireStore();
-    const saved = await store.get(userId);
-    if (saved) {
-      const refreshed = await this.tryRefresh(store, userId, saved);
-      if (refreshed) return this.keep(store, refreshed, 'refresh', false);
-    }
-    // No refresh token yet (a player from before the migration) or the session ended.
-    return this.keep(store, await this.newSession(userId), 'new_session', false);
+  /** `v2/client/create-user` with `accessTokenOnly`: the new user and an access token, nothing to keep. */
+  private async createPlayer(input: CreatePlayerInput): Promise<PlayerSession> {
+    const answer = await this.transport.request<WireAccessTokenSession>({
+      operation: 'createUser',
+      method: 'POST',
+      path: '/v2/client/create-user',
+      body: {
+        deviceId: input.deviceId,
+        platform: input.platform,
+        store: input.store,
+        linkCode: input.linkCode || null,
+        attribution: toWireAttribution(input.attribution),
+        accessTokenOnly: true,
+      },
+      auth: 'client',
+      // A retried create could consume the link code twice or create a second user.
+      idempotent: false,
+    });
+    return fromAccessTokenSession(answer);
   }
 
-  private async tryRefresh(
-    store: RefreshTokenStore,
-    userId: number,
-    refreshToken: string,
-  ): Promise<SessionWithRefreshToken | undefined> {
-    try {
-      return await this.refresh(refreshToken);
-    } catch (error) {
-      if (isCode(error, ErrorCodes.refreshTokenRotated)) {
-        // Another server instance refreshed this player a moment ago: wait for it to save the
-        // newest token, then renew with that one.
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
-          const latest = await store.get(userId);
-          if (latest && latest !== refreshToken) {
-            return this.refresh(latest).catch((retryError: unknown) => {
-              if (sessionOver(retryError) || isCode(retryError, ErrorCodes.refreshTokenRotated)) return undefined;
-              throw retryError;
-            });
-          }
-        }
-        return undefined;
-      }
-      if (sessionOver(error)) return undefined;
-      throw error;
-    }
-  }
-
-  private async keep(
-    store: RefreshTokenStore,
-    session: SessionWithRefreshToken,
-    method: SignInMethod,
-    linkCodeRejected: boolean,
-  ): Promise<SignInResult> {
-    // Always the newest refresh token: the previous one stops working.
-    await store.set(session.userId, session.refreshToken);
+  private keep(session: PlayerSession, method: SignInMethod, linkCodeRejected: boolean): SignInResult {
     const result: PlayerSession = {
       userId: session.userId,
       isLinkedToAccount: session.isLinkedToAccount,
@@ -330,13 +325,15 @@ export class Players {
       if (oldest !== undefined) this.cache.delete(oldest);
     }
   }
+}
 
-  private requireStore(): RefreshTokenStore {
-    if (!this.store) {
-      throw new Error('BazinessServer: pass `refreshTokens` (a RefreshTokenStore) to use player sessions');
-    }
-    return this.store;
-  }
+function fromAccessTokenSession(answer: WireAccessTokenSession): PlayerSession {
+  return {
+    userId: answer.userId,
+    isLinkedToAccount: answer.isLinkedToAccount,
+    accessToken: answer.token,
+    accessTokenExpiresAt: answer.accessTokenExpiresAt,
+  };
 }
 
 function fromUserSession(answer: WireUserSession): SessionWithRefreshToken {
@@ -372,6 +369,3 @@ function isCode(error: unknown, code: string): boolean {
   return error instanceof BazinessError && error.code === code;
 }
 
-function sessionOver(error: unknown): boolean {
-  return error instanceof BazinessError && error.code !== undefined && SESSION_OVER.has(error.code);
-}

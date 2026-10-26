@@ -23,6 +23,17 @@ export interface WireUserSession {
   tokens: WireTokenPair;
 }
 
+/**
+ * `v2/client/access-token/{id}` and `v2/client/create-user` with `accessTokenOnly`: an access
+ * token alone, no refresh token.
+ */
+export interface WireAccessTokenSession {
+  userId: number;
+  token: string;
+  isLinkedToAccount: boolean;
+  accessTokenExpiresAt: string;
+}
+
 /** `auth/refresh`. */
 export interface WireRefreshResponse extends WireTokenPair {
   userId: number;

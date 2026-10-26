@@ -7,7 +7,7 @@ import { Players } from './players.js';
 import { Purchases } from './purchases.js';
 import type { RefreshTokenStore } from './types.js';
 
-export const SDK_VERSION = '1.0.0';
+export const SDK_VERSION = '1.1.0';
 
 export interface BazinessServerOptions {
   /** `staging` while you integrate and test; `production` after the platform team's review. */
@@ -16,7 +16,10 @@ export interface BazinessServerOptions {
   clientId: number;
   /** Client secret of this environment. **Server only**: never in a client build, a log or git. */
   clientSecret: string;
-  /** Where each player's refresh token is kept. Required for `players.signIn` / `session` / `logout`. */
+  /**
+   * Not needed since 1.1: your server keeps no player token. Pass the store of a 1.0 integration
+   * and `players.logout` ends the sessions left in it.
+   */
   refreshTokens?: RefreshTokenStore;
   /** Override the API root (a local platform stack, for example). */
   apiBaseUrl?: string;
@@ -40,7 +43,7 @@ export interface PublicConfig {
  * The Baziness SDK for game servers. One instance per process; it is safe to share.
  *
  * ```ts
- * const baziness = BazinessServer.fromEnv(process.env, { refreshTokens: myStore, logger: console });
+ * const baziness = BazinessServer.fromEnv(process.env, { logger: console });
  * const session = await baziness.players.signIn({ deviceId, platform: 'Web', store: 'Direct', userId, linkCode });
  * ```
  */

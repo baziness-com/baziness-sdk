@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { BazinessError, BazinessServer, stableEventId, transactionIdFor } from '../src/index.js';
-import { control, fake, sdk, type FakeHub, type HubState } from './fakeHub.js';
+import { control, fake, MemoryRefreshTokenStore, sdk, type FakeHub, type HubState } from './fakeHub.js';
 
 let hub: FakeHub;
 
@@ -61,25 +61,31 @@ describe('client auth', () => {
 });
 
 describe('players', () => {
-  it('creates a player on first sign-in, then renews with the stored refresh token', async () => {
-    const { baziness, refreshTokens } = sdk(hub);
+  const accessTokenCalls = async () =>
+    (await state()).requests.filter((r) => r.path.startsWith('/api/v2/client/access-token/')).length;
+
+  it('creates a player on first sign-in, then gets a new access token; the server keeps no token', async () => {
+    const { baziness } = sdk(hub);
     const first = await baziness.players.signIn({
       ...device,
       attribution: { utmSource: 'instagram', campaignCode: 'spring' },
     });
     assert.equal(first.method, 'created');
     assert.equal(first.isLinkedToAccount, false);
-    const savedFirst = await refreshTokens.get(first.userId);
-    assert.ok(savedFirst?.startsWith('rt1.'));
+    assert.ok(first.accessToken && Date.parse(first.accessTokenExpiresAt) > Date.now());
+    assert.equal((await state()).liveSessions, 0, 'no refresh session on the platform');
 
     const hubUser = (await state()).users[0]!;
     assert.deepEqual(hubUser.attribution, { utmSource: 'instagram', linkCode: 'spring' });
 
-    // A fresh SDK instance has no cached token, so it must refresh.
-    const second = await sdk(hub, { refreshTokens }).baziness.players.signIn({ ...device, userId: first.userId });
+    // A fresh SDK instance (another server, or after a restart) has no cached token: it asks again.
+    const second = await sdk(hub).baziness.players.signIn({ ...device, userId: first.userId });
     assert.equal(second.method, 'refresh');
     assert.equal(second.userId, first.userId);
-    assert.notEqual(await refreshTokens.get(first.userId), savedFirst, 'the refresh token rotated');
+    assert.notEqual(second.accessToken, first.accessToken);
+    assert.equal(await accessTokenCalls(), 1);
+    const old = (await state()).requests.filter((r) => r.path === '/api/auth/refresh' || r.path.includes('get-user-token'));
+    assert.equal(old.length, 0, 'no refresh tokens and no token pairs');
   });
 
   it('serves a cached access token while it has time left', async () => {
@@ -87,8 +93,15 @@ describe('players', () => {
     const first = await baziness.players.signIn(device);
     const again = await baziness.players.session(first.userId);
     assert.equal(again.accessToken, first.accessToken);
-    const refreshes = (await state()).requests.filter((r) => r.path === '/api/auth/refresh');
-    assert.equal(refreshes.length, 0);
+    assert.equal(await accessTokenCalls(), 0);
+  });
+
+  it('asks once when several requests need the same player\'s token at once', async () => {
+    const first = await sdk(hub).baziness.players.signIn(device);
+    const { baziness } = sdk(hub);
+    const results = await Promise.all([1, 2, 3].map(() => baziness.players.session(first.userId)));
+    assert.equal(new Set(results.map((r) => r.accessToken)).size, 1);
+    assert.equal(await accessTokenCalls(), 1);
   });
 
   it('joins a player who arrives with a link code to the same person', async () => {
@@ -113,40 +126,45 @@ describe('players', () => {
   });
 
   it('keeps a known player when their link code is stale', async () => {
-    const { baziness, refreshTokens } = sdk(hub);
+    const { baziness } = sdk(hub);
     const first = await baziness.players.signIn(device);
-    const fresh = sdk(hub, { refreshTokens }).baziness;
+    const fresh = sdk(hub).baziness;
     const result = await fresh.players.signIn({ ...device, userId: first.userId, linkCode: 'lc.used' });
     assert.equal(result.userId, first.userId);
     assert.equal(result.method, 'refresh');
     assert.equal(result.linkCodeRejected, true);
   });
 
-  it('survives a parallel refresh by another server instance (rotated)', async () => {
-    const { baziness, refreshTokens } = sdk(hub);
-    const first = await baziness.players.signIn(device);
-    const instanceA = sdk(hub, { refreshTokens }).baziness;
-    const instanceB = sdk(hub, { refreshTokens }).baziness;
+  it('serves two server instances without coordinating', async () => {
+    const first = await sdk(hub).baziness.players.signIn(device);
+    const instanceA = sdk(hub).baziness;
+    const instanceB = sdk(hub).baziness;
     const [a, b] = await Promise.all([instanceA.players.session(first.userId), instanceB.players.session(first.userId)]);
     assert.equal(a.userId, first.userId);
     assert.equal(b.userId, first.userId);
-    assert.equal(b.method === 'refresh' || b.method === 'new_session', true);
+    assert.equal(a.method, 'refresh');
+    assert.equal(b.method, 'refresh');
   });
 
-  it('starts a new session when the refresh token was revoked', async () => {
-    const { baziness, refreshTokens } = sdk(hub);
-    const first = await baziness.players.signIn(device);
-    await baziness.players.revoke((await refreshTokens.get(first.userId))!);
-    const fresh = sdk(hub, { refreshTokens }).baziness;
-    const result = await fresh.players.session(first.userId);
-    assert.equal(result.method, 'new_session');
+  it('ends the session a 1.0 integration left in its store at logout', async () => {
+    const refreshTokens = new MemoryRefreshTokenStore();
+    const { baziness } = sdk(hub, { refreshTokens });
+    const player = await baziness.players.signIn(device);
+    // What 1.0 did: a token pair, with the refresh token kept by the game.
+    const legacy = await baziness.players.newSession(player.userId);
+    await refreshTokens.set(player.userId, legacy.refreshToken);
+    assert.equal((await state()).liveSessions, 1);
+
+    await baziness.players.logout(player.userId);
+    assert.equal(await refreshTokens.get(player.userId), null);
+    assert.equal((await state()).liveSessions, 0);
   });
 
   it('reports a suspended account', async () => {
-    const { baziness, refreshTokens } = sdk(hub);
+    const { baziness } = sdk(hub);
     const first = await baziness.players.signIn(device);
     await control(hub, 'suspend', { userId: first.userId });
-    const fresh = sdk(hub, { refreshTokens }).baziness;
+    const fresh = sdk(hub).baziness;
     await assert.rejects(fresh.players.session(first.userId), (error: unknown) => {
       assert.ok(error instanceof BazinessError);
       assert.equal(error.code, 'account_suspended');
@@ -162,15 +180,17 @@ describe('players', () => {
   });
 
   it('gives a link code per page and logs out', async () => {
-    const { baziness, refreshTokens } = sdk(hub);
+    const { baziness } = sdk(hub);
     const player = await baziness.players.signIn(device);
     const first = await baziness.players.linkCode(player.userId);
     const second = await baziness.players.linkCode(player.userId);
     assert.notEqual(first.code, second.code);
 
+    // Logout forgets the cached token: the next session request asks the platform again.
     await baziness.players.logout(player.userId);
-    assert.equal(await refreshTokens.get(player.userId), null);
-    assert.equal((await state()).liveSessions, 0);
+    const next = await baziness.players.session(player.userId);
+    assert.notEqual(next.accessToken, player.accessToken);
+    assert.equal(await accessTokenCalls(), 1);
   });
 
   it('refuses another game\'s player', async () => {

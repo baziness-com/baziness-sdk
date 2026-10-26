@@ -1,25 +1,22 @@
 package com.baziness.server;
 
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
- * Steps 2 and 3 of the flow: Baziness users for your players, their sessions (15-minute access
- * tokens renewed with refresh tokens kept on your server), link codes for Baziness pages, and
- * verifying tokens that come back from a page.
+ * Steps 2 and 3 of the flow: Baziness users for your players, their 15-minute access tokens, link
+ * codes for Baziness pages, and verifying tokens that come back from a page.
+ * <p>
+ * Your server keeps no token: its client secret is enough to get a new access token for any of its
+ * players ({@code v2/client/access-token}), so there is no refresh token to store, rotate or leak.
  */
 public final class Players {
-    private static final Set<String> SESSION_OVER = new HashSet<String>(Arrays.asList(
-            "session_revoked", "refresh_token_expired", "invalid_refresh_token", "refresh_token_reused"));
     private static final long MIN_TOKEN_LIFE_MS = 60000;
     private static final int MAX_CACHED_SESSIONS = 10000;
     private static final int LOCK_STRIPES = 64;
 
-    /** A session including its refresh token: only the low-level calls return it. */
+    /** A session including its refresh token: only the 1.0 low-level calls return it. */
     public static final class SessionWithRefreshToken extends PlayerSession {
         public final String refreshToken;
         public final String refreshTokenExpiresAt;
@@ -56,6 +53,7 @@ public final class Players {
     }
 
     private final Transport transport;
+    /** Only for integrations from 1.0, which kept refresh tokens: logout ends that leftover session. */
     private final RefreshTokenStore store;
     private final ServerAnalytics analytics;
     private final BazinessLogger logger;
@@ -81,19 +79,18 @@ public final class Players {
 
     /**
      * The one call for "a player's device came online". Creates the Baziness user the first time (or
-     * when the player arrived with a link code), otherwise renews their session. Saves the newest
-     * refresh token in your store and reports {@code auth_login}.
+     * when the player arrived with a link code), otherwise gets a fresh access token for them. Reports
+     * {@code auth_login} when a user was created or joined through a link code.
      * <p>
      * Compare the returned {@code userId} with the one you saved: when it belongs to another of your
      * players, it is the same person on another device — switch this device to that player.
      */
     public SignInResult signIn(SignInRequest request) {
-        requireStore();
         boolean linkCodeRejected = false;
         boolean hasCode = request.linkCode != null && !request.linkCode.isEmpty();
         if (hasCode || request.userId <= 0) {
             try {
-                return keep(create(request.deviceId, request.platform, request.store, request.linkCode, request.attribution),
+                return keep(createPlayer(request, request.linkCode),
                         hasCode ? SignInResult.Method.LINK_CODE : SignInResult.Method.CREATED, false);
             } catch (BazinessException e) {
                 if (!(hasCode && e.hasCode(BazinessException.INVALID_LINK_CODE))) {
@@ -104,8 +101,7 @@ public final class Players {
                 logger.info("[baziness] link code rejected; continuing without it");
             }
             if (request.userId <= 0) {
-                return keep(create(request.deviceId, request.platform, request.store, null, request.attribution),
-                        SignInResult.Method.CREATED, true);
+                return keep(createPlayer(request, null), SignInResult.Method.CREATED, true);
             }
         }
         SignInResult result = session(request.userId);
@@ -113,13 +109,11 @@ public final class Players {
     }
 
     /**
-     * A valid access token for a known player: the cached one while it has a minute left, otherwise
-     * a refresh (one at a time per player in this process). Falls back to a new session when the
-     * refresh token is missing or the session ended. Throws {@link BazinessException}
+     * A valid access token for a known player: the cached one while it has a minute left, otherwise a
+     * new one (one request at a time per player in this process). Throws {@link BazinessException}
      * {@code account_suspended} (403) for a blocked account.
      */
     public SignInResult session(long userId) {
-        requireStore();
         synchronized (locks[(int) (Math.abs(userId) % LOCK_STRIPES)]) {
             PlayerSession cached;
             synchronized (cache) {
@@ -128,15 +122,7 @@ public final class Players {
             if (cached != null && millisLeft(cached.accessTokenExpiresAt) > MIN_TOKEN_LIFE_MS) {
                 return new SignInResult(cached, SignInResult.Method.REFRESH, false);
             }
-            String saved = store.get(userId);
-            if (saved != null) {
-                SessionWithRefreshToken refreshed = tryRefresh(userId, saved);
-                if (refreshed != null) {
-                    return keep(refreshed, SignInResult.Method.REFRESH, false);
-                }
-            }
-            // No refresh token yet (a player from before the migration) or the session ended.
-            return keep(newSession(userId), SignInResult.Method.NEW_SESSION, false);
+            return keep(accessToken(userId), SignInResult.Method.REFRESH, false);
         }
     }
 
@@ -160,11 +146,16 @@ public final class Players {
         return new VerifiedToken(valid, valid ? Json.number(answer, "userId") : 0);
     }
 
-    /** End the player's session (the page sent {@code logout}) and forget their refresh token. */
+    /**
+     * The page sent {@code logout}: forget the player's cached token. A refresh token that an
+     * integration from 1.0 still keeps in its store is revoked and removed.
+     */
     public void logout(long userId) {
-        requireStore();
         synchronized (cache) {
             cache.remove(userId);
+        }
+        if (store == null) {
+            return;
         }
         String refreshToken = store.get(userId);
         if (refreshToken != null) {
@@ -184,23 +175,30 @@ public final class Players {
         return answer == null ? null : Json.object(answer);
     }
 
-    // ── Low level: one platform call each; you keep the refresh token yourself ──
+    // ── Low level: one platform call each ──
 
-    /** {@code v2/client/create-user}. */
-    public SessionWithRefreshToken create(String deviceId, String platform, String store, String linkCode,
-                                          Attribution attribution) {
-        Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("deviceId", deviceId);
-        body.put("platform", platform);
-        body.put("store", store);
-        body.put("linkCode", linkCode == null || linkCode.isEmpty() ? null : linkCode);
-        body.put("attribution", attribution == null ? null : attribution.toWire());
-        // Not idempotent: a retried create could consume the link code twice or create a second user.
-        return fromUserSession(Json.object(transport.request(
-                new Transport.Call("createUser", "POST", "/v2/client/create-user", body, true, false))));
+    /**
+     * {@code v2/client/access-token/{id}}: a 15-minute access token for one of your players, no
+     * refresh token. Ask again when it runs out; {@link #session} caches it for you.
+     */
+    public PlayerSession accessToken(long userId) {
+        // Issues a token and nothing else: safe to repeat.
+        return fromAccessTokenSession(Json.object(transport.request(
+                new Transport.Call("accessToken", "POST", "/v2/client/access-token/" + userId, null, true, true))));
     }
 
-    /** {@code v2/client/get-user-token/{id}}: a new session for a known player. */
+    /**
+     * {@code v2/client/create-user} with a token pair (a refresh token you keep yourself). Kept for
+     * integrations from 1.0; {@link #signIn} keeps no refresh token.
+     */
+    public SessionWithRefreshToken create(String deviceId, String platform, String store, String linkCode,
+                                          Attribution attribution) {
+        // Not idempotent: a retried create could consume the link code twice or create a second user.
+        return fromUserSession(Json.object(transport.request(new Transport.Call("createUser", "POST",
+                "/v2/client/create-user", createBody(deviceId, platform, store, linkCode, attribution), true, false))));
+    }
+
+    /** {@code v2/client/get-user-token/{id}}: a session with a refresh token (integrations from 1.0). */
     public SessionWithRefreshToken newSession(long userId) {
         return fromUserSession(Json.object(transport.request(
                 new Transport.Call("newSession", "POST", "/v2/client/get-user-token/" + userId, null, true, false))));
@@ -226,39 +224,28 @@ public final class Players {
 
     // ── Internals ──
 
-    private SessionWithRefreshToken tryRefresh(long userId, String refreshToken) {
-        try {
-            return refresh(refreshToken);
-        } catch (BazinessException e) {
-            if (e.hasCode(BazinessException.REFRESH_TOKEN_ROTATED)) {
-                // Another server instance refreshed this player a moment ago: wait for it to save
-                // the newest token, then renew with that one.
-                for (int attempt = 1; attempt <= 3; attempt++) {
-                    Transport.sleep(150L * attempt);
-                    String latest = store.get(userId);
-                    if (latest != null && !latest.equals(refreshToken)) {
-                        try {
-                            return refresh(latest);
-                        } catch (BazinessException retry) {
-                            if (sessionOver(retry) || retry.hasCode(BazinessException.REFRESH_TOKEN_ROTATED)) {
-                                return null;
-                            }
-                            throw retry;
-                        }
-                    }
-                }
-                return null;
-            }
-            if (sessionOver(e)) {
-                return null;
-            }
-            throw e;
-        }
+    /** {@code v2/client/create-user} with {@code accessTokenOnly}: the new user and an access token, nothing to keep. */
+    private PlayerSession createPlayer(SignInRequest request, String linkCode) {
+        Map<String, Object> body = createBody(request.deviceId, request.platform, request.store, linkCode,
+                request.attribution);
+        body.put("accessTokenOnly", Boolean.TRUE);
+        // Not idempotent: a retried create could consume the link code twice or create a second user.
+        return fromAccessTokenSession(Json.object(transport.request(
+                new Transport.Call("createUser", "POST", "/v2/client/create-user", body, true, false))));
     }
 
-    private SignInResult keep(SessionWithRefreshToken session, SignInResult.Method method, boolean linkCodeRejected) {
-        // Always the newest refresh token: the previous one stops working.
-        store.set(session.userId, session.refreshToken);
+    private static Map<String, Object> createBody(String deviceId, String platform, String store, String linkCode,
+                                                  Attribution attribution) {
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("deviceId", deviceId);
+        body.put("platform", platform);
+        body.put("store", store);
+        body.put("linkCode", linkCode == null || linkCode.isEmpty() ? null : linkCode);
+        body.put("attribution", attribution == null ? null : attribution.toWire());
+        return body;
+    }
+
+    private SignInResult keep(PlayerSession session, SignInResult.Method method, boolean linkCodeRejected) {
         PlayerSession result = new PlayerSession(session.userId, session.isLinkedToAccount, session.accessToken,
                 session.accessTokenExpiresAt);
         synchronized (cache) {
@@ -274,6 +261,11 @@ public final class Players {
         return new SignInResult(result, method, linkCodeRejected);
     }
 
+    private static PlayerSession fromAccessTokenSession(Map<String, Object> answer) {
+        return new PlayerSession(Json.number(answer, "userId"), Json.bool(answer, "isLinkedToAccount"),
+                Json.string(answer, "token"), Json.string(answer, "accessTokenExpiresAt"));
+    }
+
     private static SessionWithRefreshToken fromUserSession(Map<String, Object> answer) {
         Map<String, Object> tokens = Json.object(answer.get("tokens"));
         return new SessionWithRefreshToken(Json.number(answer, "userId"), Json.bool(answer, "isLinkedToAccount"),
@@ -281,21 +273,11 @@ public final class Players {
                 Json.string(tokens, "refreshToken"), Json.string(tokens, "refreshTokenExpiresAt"));
     }
 
-    private static boolean sessionOver(BazinessException e) {
-        return e.code() != null && SESSION_OVER.contains(e.code());
-    }
-
     private static long millisLeft(String isoTime) {
         try {
             return OffsetDateTime.parse(isoTime).toInstant().toEpochMilli() - System.currentTimeMillis();
         } catch (RuntimeException e) {
             return 0;
-        }
-    }
-
-    private void requireStore() {
-        if (store == null) {
-            throw new IllegalStateException("BazinessServer: set refreshTokens (a RefreshTokenStore) to use player sessions");
         }
     }
 }
