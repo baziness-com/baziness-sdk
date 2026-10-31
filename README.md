@@ -76,7 +76,7 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | `baziness-sdk-js-server-<version>.tgz`, `baziness-sdk-js-web-<version>.tgz` | GitHub Releases | npm package archives built by CI |
 | `baziness-sdk-java-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
 | `baziness-sdk-unity-<version>.tgz` | GitHub Releases | Unity package archive built by CI |
-| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.2.1` |
+| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.3.0` |
 
 Keep all five version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 

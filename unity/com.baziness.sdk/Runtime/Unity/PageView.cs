@@ -18,6 +18,17 @@ namespace Baziness
     }
 
     /// <summary>
+    /// A page view that can appear before the page address is ready. <see cref="BazinessSdk.OpenPage"/> shows
+    /// it at once (loading) while it gets the link code from your server, then calls <see cref="IPageView.Open"/>
+    /// on it, or <see cref="IPageView.Close"/> when that fails.
+    /// </summary>
+    public interface IInstantPageView : IPageView
+    {
+        /// <summary>Appear now, loading. <paramref name="onClosed"/> runs if the player closes it before the page opens.</summary>
+        void ShowLoading(Action onClosed);
+    }
+
+    /// <summary>
     /// Where the bundled web view does not run (Windows, Linux, WebGL): the page opens in the system
     /// browser. It cannot send messages back, so a sign-in there is not linked to the player.
     /// </summary>

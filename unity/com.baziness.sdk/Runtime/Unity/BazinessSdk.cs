@@ -67,6 +67,7 @@ namespace Baziness
         private static IHttp http;
         private static BazinessPage? openPage;
         private static float openedAt;
+        private static int pageAttempt;
         private static bool started;
         private static BazinessRunner runner;
 
@@ -190,13 +191,42 @@ namespace Baziness
             return Referrals.Collectable();
         }
 
-        /// <summary>Open a Baziness page over the game with a fresh link code from your server.</summary>
+        /// <summary>
+        /// Open a Baziness page over the game with a fresh link code from your server. A page view that can
+        /// (<see cref="IInstantPageView"/>, the built-in one) appears at once and loads the page when the code arrives.
+        /// </summary>
         public static async Task OpenPage(BazinessPage page, Dictionary<string, string> query = null)
         {
             RequireInitialized();
-            if (options.PageView.IsOpen) return;
-            await sessions.Get();
-            var linkCode = await options.Backend.LinkCode();
+            if (options.PageView.IsOpen || openPage.HasValue) return;
+            var attempt = ++pageAttempt;
+            openPage = page;
+            openedAt = Time.realtimeSinceStartup;
+            var instant = options.PageView as IInstantPageView;
+            if (instant != null)
+            {
+                instant.ShowLoading(OnPageClosed);
+                PageShown(page);
+            }
+
+            string linkCode;
+            try
+            {
+                await sessions.Get();
+                linkCode = await options.Backend.LinkCode();
+            }
+            catch (Exception)
+            {
+                if (attempt == pageAttempt)
+                {
+                    if (instant != null) ClosePage();
+                    else openPage = null;
+                }
+                throw;
+            }
+            // The player closed it (or another page opened) while the code was on its way.
+            if (attempt != pageAttempt || openPage != page || (instant != null && !instant.IsOpen)) return;
+
             var safeArea = Screen.safeArea;
             var url = PageUrl.Build(new PageUrlInput
             {
@@ -213,9 +243,12 @@ namespace Baziness
                 BottomInset = PageUrl.InsetPercent(safeArea.yMin, Screen.height),
                 Query = query
             });
-            openPage = page;
-            openedAt = Time.realtimeSinceStartup;
             options.PageView.Open(url, raw => _ = OnPageMessage(raw), OnPageClosed);
+            if (instant == null) PageShown(page);
+        }
+
+        private static void PageShown(BazinessPage page)
+        {
             Analytics.Record("baziness:page:open", null, new Dictionary<string, object> { ["page"] = PageName(page) });
             PageOpened?.Invoke(page);
         }

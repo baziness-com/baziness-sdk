@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 — 2026-10-31
+
+- The page view appears at once and starts the web view while your server makes the link code
+  (`IInstantPageView.ShowLoading`; the built-in `BazinessWebView` implements it).
+- Smoother slides: ease-out open in 0.3 s, ease-in close in 0.25 s (`PageViewStyle` defaults).
+
 ## 1.2.1 — 2026-10-31
 
 - `BazinessSdk.IsPageOpen`: skip your own back-button handling while a page is up.

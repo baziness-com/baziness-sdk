@@ -12,7 +12,7 @@ import java.util.Map;
  * </pre>
  */
 public final class BazinessServer {
-    public static final String SDK_VERSION = "1.2.1";
+    public static final String SDK_VERSION = "1.3.0";
 
     private final Environment environment;
     private final String apiBase;

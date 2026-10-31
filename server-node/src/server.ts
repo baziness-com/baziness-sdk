@@ -8,7 +8,7 @@ import { Purchases } from './purchases.js';
 import type { RefreshTokenStore } from './types.js';
 import type { WireOffer } from './wire.js';
 
-export const SDK_VERSION = '1.2.1';
+export const SDK_VERSION = '1.3.0';
 
 export interface BazinessServerOptions {
   /** `staging` while you integrate and test; `production` after the platform team's review. */

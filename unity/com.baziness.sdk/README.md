@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 Package Manager → **Add package from git URL**:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.2.1`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.3.0`
 
 That is all: the web view comes with it. The package bundles
 [gree unity-webview](https://github.com/gree/unity-webview) (zlib, see
@@ -39,12 +39,14 @@ BazinessSdk.Analytics.LevelComplete("7", 1200);       // one method per event
 
 ## The page view
 
-`BazinessWebView` shows a page over the game: a backdrop slides up, a spinner turns while the page
-loads, a close button appears when it takes longer than three seconds, the page slides down when it
-closes, and the Android back button closes it. Change its look with `PageViewStyle` (backdrop colour,
+`BazinessWebView` shows a page over the game. It appears the moment `OpenPage` is called: a backdrop
+slides up and a spinner turns while your server makes the link code and the page loads, a close button
+appears when it takes longer than three seconds, the page slides down when it closes, and the Android
+back button closes it. Change its look with `PageViewStyle` (backdrop colour,
 spinner and close sprites, sizes, positions, timings, canvas sorting order) in the settings asset or in
 `BazinessOptions.PageViewStyle`; the defaults are Yatzy's. To show pages your own way, pass an
-`IPageView` (`SdkType`, `IsOpen`, `Open`, `Close`) as `BazinessOptions.PageView`.
+`IPageView` (`SdkType`, `IsOpen`, `Open`, `Close`) as `BazinessOptions.PageView`; implement
+`IInstantPageView` (`ShowLoading`) too for it to appear before the link code arrives.
 
 ## API
 

@@ -6,6 +6,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-31
+
+- Unity: the page view appears **the moment a page is asked for**. `BazinessWebView` slides up with its
+  spinner and starts the web view while your server makes the link code, then loads the page when the
+  code arrives; before, nothing showed until the code was back. A page view that can do this implements
+  the new `IInstantPageView` (`ShowLoading`); other `IPageView`s open as before. Closing the page during
+  the wait cancels it, and a failed link code closes it again.
+- Unity: smoother slides: the page view eases out as it opens (0.3 s) and eases in as it closes
+  (0.25 s, the whole page moving down). `PageViewStyle.openSeconds` and `closeSeconds` are the new
+  defaults; 1.2 took 0.45 s and 0.4 s, and its close covered most of the way in the first frames.
+- Server SDKs and web: no change; the version follows the Unity package.
+
 ## [1.2.1] - 2026-10-31
 
 - Server SDKs (Node, Java): `coins.add` no longer reports a refused payout as paid. The platform answers
@@ -76,7 +88,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Initial public SDK release for Node.js game servers, Java game servers, web games, and Unity games.
 
-[Unreleased]: https://github.com/baziness-com/baziness-sdk/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/baziness-com/baziness-sdk/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/baziness-com/baziness-sdk/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/baziness-com/baziness-sdk/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/baziness-com/baziness-sdk/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/baziness-com/baziness-sdk/compare/v1.0.1...v1.1.0

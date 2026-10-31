@@ -21,8 +21,10 @@ namespace Baziness
         [Tooltip("From the top-right corner.")]
         public Vector2 closeButtonPosition = new Vector2(-198, -245);
         public float closeButtonDelay = 3f;
-        public float openSeconds = 0.45f;
-        public float closeSeconds = 0.4f;
+        [Tooltip("The slide in, easing out: it moves at once and settles.")]
+        public float openSeconds = 0.3f;
+        [Tooltip("The slide out, easing in.")]
+        public float closeSeconds = 0.25f;
         public Vector2 referenceResolution = new Vector2(1920, 1080);
         public int sortingOrder = 9999;
     }
@@ -30,10 +32,11 @@ namespace Baziness
     /// <summary>
     /// The SDK's page view: the page in the bundled web view (gree unity-webview) over a backdrop that
     /// slides up, a spinner while it loads, a close button when it loads slowly, a slide-down on close and
-    /// the Android back button. Works on Android, iOS and macOS (the editor too); elsewhere the SDK opens
-    /// pages in the system browser (<see cref="IsSupported"/>).
+    /// the Android back button. It appears the moment a page is asked for and starts the web view while
+    /// your server makes the link code. Works on Android, iOS and macOS (the editor too); elsewhere the SDK
+    /// opens pages in the system browser (<see cref="IsSupported"/>).
     /// </summary>
-    public sealed class BazinessWebView : MonoBehaviour, IPageView
+    public sealed class BazinessWebView : MonoBehaviour, IInstantPageView
     {
         private const string SpritesPath = "BazinessWebView/";
 
@@ -46,6 +49,7 @@ namespace Baziness
         private Action<string> onMessage;
         private Action onClosed;
         private bool opening;
+        private bool pageRequested;
         private bool loaded;
         private bool closing;
         private float loadingSince;
@@ -78,36 +82,17 @@ namespace Baziness
             return view;
         }
 
-        public void Open(string url, Action<string> messageHandler, Action closedHandler)
+        /// <summary>Appear now with the spinner; the web view starts up while your server makes the link code.</summary>
+        public void ShowLoading(Action closedHandler)
         {
             if (IsOpen)
                 return;
-            onMessage = messageHandler;
             onClosed = closedHandler;
+            onMessage = null;
+            pageRequested = false;
             loaded = false;
             closing = false;
-
-            webView = new GameObject("WebViewObject").AddComponent<WebViewObject>();
-            webView.transform.SetParent(transform, false);
-#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
-            // macOS draws the page into this canvas.
-            webView.canvas = gameObject;
-            webView.bitmapRefreshCycle = 1;
-#endif
-            webView.Init(
-                cb: message => onMessage?.Invoke(message),
-                err: OnLoadError,
-                httpErr: error => Debug.LogWarning("[baziness] page HTTP error: " + error),
-                ld: _ => OnLoaded());
-#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX || UNITY_IOS
-            // UIWebView fallback: WKWebView defines Unity.call itself.
-            webView.EvaluateJS(@"if (!(window.webkit && window.webkit.messageHandlers)) {
-                window.Unity = { call: function(msg) { window.location = 'unity:' + msg; } }; }");
-#endif
-            webView.SetMargins(0, 0, 0, 0);
-            webView.SetTextZoom(100);
-            webView.SetVisibility(false);
-            webView.LoadURL(url);
+            webView = CreateWebView();
 
             spinner.gameObject.SetActive(true);
             closeButton.SetActive(false);
@@ -117,6 +102,18 @@ namespace Baziness
             StartCoroutine(SlideIn());
         }
 
+        public void Open(string url, Action<string> messageHandler, Action closedHandler)
+        {
+            if (closing)
+                return;
+            if (!IsOpen)
+                ShowLoading(closedHandler);
+            onMessage = messageHandler;
+            onClosed = closedHandler;
+            pageRequested = true;
+            webView.LoadURL(url);
+        }
+
         public void Close()
         {
             if (webView == null || closing)
@@ -124,6 +121,31 @@ namespace Baziness
             closing = true;
             StopAllCoroutines();
             StartCoroutine(webView.GetVisibility() ? SlidePageOut() : SlideBackdropOut());
+        }
+
+        private WebViewObject CreateWebView()
+        {
+            var view = new GameObject("WebViewObject").AddComponent<WebViewObject>();
+            view.transform.SetParent(transform, false);
+#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
+            // macOS draws the page into this canvas.
+            view.canvas = gameObject;
+            view.bitmapRefreshCycle = 1;
+#endif
+            view.Init(
+                cb: message => onMessage?.Invoke(message),
+                err: OnLoadError,
+                httpErr: error => Debug.LogWarning("[baziness] page HTTP error: " + error),
+                ld: _ => OnLoaded());
+#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX || UNITY_IOS
+            // UIWebView fallback: WKWebView defines Unity.call itself.
+            view.EvaluateJS(@"if (!(window.webkit && window.webkit.messageHandlers)) {
+                window.Unity = { call: function(msg) { window.location = 'unity:' + msg; } }; }");
+#endif
+            view.SetMargins(0, 0, 0, 0);
+            view.SetTextZoom(100);
+            view.SetVisibility(false);
+            return view;
         }
 
         private void Build(PageViewStyle pageStyle)
@@ -177,7 +199,8 @@ namespace Baziness
 
         private void OnLoaded()
         {
-            if (webView == null || closing)
+            // Before Open the web view has no page yet: a load then is not the page.
+            if (webView == null || closing || !pageRequested)
                 return;
             loaded = true;
             ShowPage();
@@ -203,7 +226,7 @@ namespace Baziness
         private IEnumerator SlideIn()
         {
             opening = true;
-            yield return Slide(backdrop, -Height() * 1.5f, 0, style.openSeconds, EaseInOutQuint);
+            yield return Slide(backdrop, -Height(), 0, style.openSeconds, EaseOutCubic);
             opening = false;
             ShowPage();
         }
@@ -212,7 +235,7 @@ namespace Baziness
         private IEnumerator SlideBackdropOut()
         {
             webView.SetVisibility(false);
-            yield return Slide(backdrop, backdrop.anchoredPosition.y, -Height() * 1.8f, style.closeSeconds, EaseOutExpo);
+            yield return Slide(backdrop, backdrop.anchoredPosition.y, -Height(), style.closeSeconds, EaseInCubic);
             Finish();
         }
 
@@ -222,8 +245,9 @@ namespace Baziness
             backdrop.gameObject.SetActive(false);
             for (var elapsed = 0f; elapsed < style.closeSeconds; elapsed += Time.unscaledDeltaTime)
             {
-                var t = EaseOutExpo(elapsed / style.closeSeconds);
-                webView.SetMargins(0, (int)Mathf.Lerp(0, Screen.height + 200, t), 0, (int)Mathf.Lerp(0, -Screen.height + 200, t));
+                // The page keeps its height and moves down off the screen.
+                var offset = (int)(Screen.height * EaseInCubic(elapsed / style.closeSeconds));
+                webView.SetMargins(0, offset, 0, -offset);
                 yield return null;
             }
             Finish();
@@ -272,14 +296,16 @@ namespace Baziness
                 : Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
         }
 
-        private static float EaseInOutQuint(float t)
+        private static float EaseOutCubic(float t)
         {
-            return t < 0.5f ? 16f * t * t * t * t * t : 1f - Mathf.Pow(-2f * t + 2f, 5f) / 2f;
+            var inverse = 1f - Mathf.Clamp01(t);
+            return 1f - inverse * inverse * inverse;
         }
 
-        private static float EaseOutExpo(float t)
+        private static float EaseInCubic(float t)
         {
-            return t >= 1 ? 1 : 1 - Mathf.Pow(2, -10 * t);
+            t = Mathf.Clamp01(t);
+            return t * t * t;
         }
     }
 }
