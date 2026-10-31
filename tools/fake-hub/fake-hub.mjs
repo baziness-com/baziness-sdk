@@ -9,6 +9,7 @@
 // Test control (no auth): POST /__control/reset, POST /__control/fail {path, status, times, error},
 // POST /__control/expire-client-tokens, POST /__control/link-code {userId, targetClientId?},
 // POST /__control/offer {playerId, bundleId}, POST /__control/referral-rewards {userId, count},
+// POST /__control/client-wallet {clientId, balance}, POST /__control/drop-after-credit {times},
 // GET /__control/state.
 
 import { createServer } from 'node:http';
@@ -39,6 +40,8 @@ function freshState() {
     linkCodes: new Map(), // code → { userId, expiresAt, consumed, targetClientId }
     coins: new Map(), // userId → balance
     credited: new Set(), // transactionIds
+    clientWallets: new Map(), // clientId → coins left to pay out (no entry: unlimited)
+    dropAfterCredit: 0, // add-coin calls that credit and then lose their answer
     purchases: [],
     serverEvents: [],
     deviceEvents: [],
@@ -247,6 +250,14 @@ async function handle(req, res) {
     state.accounts.set(accountId, { accountId, phone: body.phone ?? '09120000000' });
     return sendJson(res, 200, { accountId });
   }
+  if (path === '/__control/client-wallet') {
+    state.clientWallets.set(body.clientId, body.balance);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (path === '/__control/drop-after-credit') {
+    state.dropAfterCredit = body.times ?? 1;
+    return sendJson(res, 200, { ok: true });
+  }
   if (path === '/__control/offer') {
     state.offers.set(body.playerId, body.bundleId);
     return sendJson(res, 200, { ok: true });
@@ -376,9 +387,17 @@ async function handle(req, res) {
   if (path === '/api/client/add-coin' && req.method === 'POST') {
     const user = ownUser(body.userId);
     if (!user) return fail(res, 400, 'user does not belong to this client');
+    // Like the hub, every refusal reads the same: already paid, or the game's wallet is short.
     if (state.credited.has(body.transactionId)) return fail(res, 400, 'add resource failed');
+    const wallet = state.clientWallets.get(clientId);
+    if (wallet !== undefined && wallet < body.amount) return fail(res, 400, 'add resource failed');
+    if (wallet !== undefined) state.clientWallets.set(clientId, wallet - body.amount);
     state.credited.add(body.transactionId);
     state.coins.set(user.userId, (state.coins.get(user.userId) ?? 0) + body.amount);
+    if (state.dropAfterCredit > 0) {
+      state.dropAfterCredit--;
+      return req.socket.destroy();
+    }
     // Like the hub: the answer carries the amount credited, not the new balance.
     return sendJson(res, 200, { resourceId: 1, amount: body.amount });
   }

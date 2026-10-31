@@ -128,8 +128,30 @@ public final class BazinessServerTest {
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;
                 Coins.AddResult paid = baziness.coins().add(userId, 50, "match:17", null);
                 equal(paid.credited, 50L);
-                check(baziness.coins().add(userId, 50, "match:17", null).alreadyCredited, "second payout refused as already paid");
+                try {
+                    baziness.coins().add(userId, 50, "match:17", null);
+                    check(false, "a later call for the same payout must be refused");
+                } catch (BazinessException e) {
+                    equal(e.code(), BazinessException.ADD_COIN_REFUSED);
+                }
                 control("expire-client-tokens", "{}");
+                equal(baziness.coins().balance(userId), 50L);
+            });
+            test("a lost answer then a refused retry is already credited; an uncovered payout is refused", () -> {
+                BazinessServer baziness = sdk(null);
+                long userId = baziness.players().signIn(new SignInRequest("d", "Android", "CafeBazaar")).userId;
+                control("drop-after-credit", "{\"times\":1}");
+                Coins.AddResult paid = baziness.coins().add(userId, 50, "match:17", null);
+                check(paid.alreadyCredited && paid.credited == null, "already credited after the lost answer");
+                equal(baziness.coins().balance(userId), 50L);
+
+                control("client-wallet", "{\"clientId\":12,\"balance\":130}");
+                try {
+                    baziness.coins().add(userId, 500, "tutorial", null);
+                    check(false, "an uncovered payout must be refused");
+                } catch (BazinessException e) {
+                    equal(e.code(), BazinessException.ADD_COIN_REFUSED);
+                }
                 equal(baziness.coins().balance(userId), 50L);
             });
             test("retries a 503 and a dropped connection on idempotent calls", () -> {

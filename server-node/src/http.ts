@@ -48,6 +48,8 @@ export interface RequestSpec {
   idempotent: boolean;
   /** Parse the body as JSON. Default true. */
   expectJson?: boolean;
+  /** Set by the transport when an attempt's outcome was unknown (timeout, 500, 504) and the call was sent again. */
+  outcome?: { resentAfterUnknownOutcome: boolean };
 }
 
 /** Supplies the client token; `forceNew` after a 401. Set by {@link ClientAuth}. */
@@ -159,6 +161,8 @@ export class Transport {
         if (!retryable || attempt === this.maxAttempts) {
           return answer;
         }
+        // 429, 502 and 503 mean the platform did not process it; 500 and 504 may come after it did.
+        if (RETRYABLE_IF_IDEMPOTENT.has(answer.status) && spec.outcome) spec.outcome.resentAfterUnknownOutcome = true;
         retryAfterMs = answer.retryAfterMs;
         lastError = new BazinessError(`${spec.operation}: HTTP ${answer.status}`, spec.operation, answer.status);
       } catch (error) {
@@ -167,6 +171,7 @@ export class Transport {
         if (!(spec.idempotent || notSent) || attempt === this.maxAttempts) {
           throw lastError;
         }
+        if (!notSent && spec.outcome) spec.outcome.resentAfterUnknownOutcome = true;
       }
       const backoff = retryAfterMs ?? this.retryBaseMs * 2 ** (attempt - 1) * (0.5 + Math.random());
       if (Date.now() + backoff >= deadlineAt) {

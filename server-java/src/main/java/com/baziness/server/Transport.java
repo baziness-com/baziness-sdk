@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
+import java.net.HttpRetryException;
 import java.net.HttpURLConnection;
 import java.net.NoRouteToHostException;
 import java.net.URL;
@@ -32,6 +33,8 @@ final class Transport {
         final boolean clientAuth;
         final boolean idempotent;
         boolean expectJson = true;
+        /** Set when an attempt's outcome was unknown (timeout, 500, 504) and the call was sent again. */
+        boolean resentAfterUnknownOutcome;
 
         Call(String operation, String method, String path, Object body, boolean clientAuth, boolean idempotent) {
             this.operation = operation;
@@ -145,6 +148,10 @@ final class Transport {
                 if (!retryable || attempt == options.maxAttempts) {
                     return answer;
                 }
+                // 429, 502 and 503 mean the platform did not process it; 500 and 504 may come after it did.
+                if (answer.status == 500 || answer.status == 504) {
+                    call.resentAfterUnknownOutcome = true;
+                }
                 retryAfter = answer.retryAfterMs;
                 last = new BazinessException(call.operation + ": HTTP " + answer.status, call.operation, answer.status, null);
             } catch (IOException e) {
@@ -155,6 +162,9 @@ final class Transport {
                         call.operation, 0, null);
                 if (!(call.idempotent || notSent) || attempt == options.maxAttempts) {
                     throw last;
+                }
+                if (!notSent) {
+                    call.resentAfterUnknownOutcome = true;
                 }
             }
             long backoff = retryAfter >= 0 ? retryAfter
@@ -187,23 +197,33 @@ final class Transport {
             if (token != null) {
                 connection.setRequestProperty("Authorization", "Bearer " + token);
             }
-            if (call.body != null) {
-                byte[] payload = Json.write(call.body).getBytes(StandardCharsets.UTF_8);
+            if (call.body != null || "POST".equals(call.method)) {
+                byte[] payload = call.body != null ? Json.write(call.body).getBytes(StandardCharsets.UTF_8) : new byte[0];
                 connection.setDoOutput(true);
-                connection.setRequestProperty("Content-Type", "application/json");
-                // Buffered, not streaming: in streaming mode HttpURLConnection drops the body of a
-                // 401, and with it the error code (refresh_token_rotated, session_revoked, …).
+                if (call.body != null) {
+                    connection.setRequestProperty("Content-Type", "application/json");
+                }
+                // Client-token calls are streamed: the JDK silently sends a buffered POST again when
+                // the connection drops before the answer, unseen by the retries here (a second user,
+                // a payout reported as refused). Their 401 needs no body: it only means sign in again.
+                // The refresh-token calls stay buffered for their 401 codes (refresh_token_rotated, …).
+                if (call.clientAuth) {
+                    connection.setFixedLengthStreamingMode(payload.length);
+                }
                 OutputStream out = connection.getOutputStream();
                 try {
                     out.write(payload);
                 } finally {
                     out.close();
                 }
-            } else if ("POST".equals(call.method)) {
-                connection.setDoOutput(true);
-                connection.getOutputStream().close();
             }
-            int status = connection.getResponseCode();
+            int status;
+            try {
+                status = connection.getResponseCode();
+            } catch (HttpRetryException e) {
+                // A streamed request answered 401: the JDK cannot replay it and reports it this way.
+                return new Answer(e.responseCode(), "", -1);
+            }
             InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
             String text = stream == null ? "" : read(stream);
             return new Answer(status, text, retryAfter(connection.getHeaderField("Retry-After")));

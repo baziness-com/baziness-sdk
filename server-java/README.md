@@ -5,12 +5,12 @@ Yatzy's, and any other JVM server. Same API and behaviour as `@baziness/server`.
 
 ## Install
 
-Download `baziness-sdk-java-1.2.0.jar` from the
-[v1.2.0 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.2.0) and add
+Download `baziness-sdk-java-1.2.1.jar` from the
+[v1.2.1 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.2.1) and add
 it to your server's classpath. The JAR has no runtime dependencies and targets Java 8.
 
 ```bash
-javac -cp baziness-sdk-java-1.2.0.jar YourGameServer.java
+javac -cp baziness-sdk-java-1.2.1.jar YourGameServer.java
 ```
 
 ## Quick start
@@ -34,5 +34,5 @@ baziness.close();                                                // extension de
 Calls block: make them from a worker thread, never from SmartFox's I/O threads.
 
 ```bash
-./build.sh           # javac --release 8 → out/baziness-server-1.2.0.jar, then 13 tests (needs Node for the fake platform)
+./build.sh           # javac --release 8 → out/baziness-server-1.2.1.jar, then 14 tests (needs Node for the fake platform)
 ```

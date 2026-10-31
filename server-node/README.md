@@ -31,4 +31,4 @@ const bundleId = await baziness.offers.get(playerId);                    // your
 await baziness.close();                                                   // on shutdown
 ```
 
-`npm test` runs 31 tests against the shared fake platform in `../tools/fake-hub`.
+`npm test` runs 33 tests against the shared fake platform in `../tools/fake-hub`.

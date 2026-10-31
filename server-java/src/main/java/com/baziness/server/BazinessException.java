@@ -11,6 +11,11 @@ public class BazinessException extends RuntimeException {
     public static final String INVALID_LINK_CODE = "invalid_link_code";
     public static final String ACCOUNT_SUSPENDED = "account_suspended";
     public static final String REFRESH_TOKEN_ROTATED = "refresh_token_rotated";
+    /**
+     * {@code coins.add}: the platform refused the payout. Your game's coin wallet may be short of coins,
+     * or this transaction id was already paid by an earlier call (the platform does not say which).
+     */
+    public static final String ADD_COIN_REFUSED = "add_coin_refused";
 
     private final String operation;
     private final int status;

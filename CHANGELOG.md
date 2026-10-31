@@ -6,6 +6,23 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-31
+
+- Server SDKs (Node, Java): `coins.add` no longer reports a refused payout as paid. The platform answers
+  every refusal with the same `add resource failed` (the game's coin wallet short of coins, or the id
+  already paid). 1.2.0 read it as `alreadyCredited`, so a game could show coins the player never got. Now
+  `alreadyCredited` comes only when this call had sent the payout before without an answer (timeout,
+  500, dropped connection) and the platform refused the resend; any other refusal throws
+  `add_coin_refused` (`ErrorCodes.addCoinRefused`, `BazinessException.ADD_COIN_REFUSED`). Calling `add`
+  again for a payout that was already paid therefore throws instead of returning `alreadyCredited`.
+- Java: client-token requests are streamed, so the JDK can no longer resend a POST on its own when the
+  connection drops before the answer (unseen by the SDK's retries: a second user, a payout reported as
+  refused).
+- Unity: `BazinessSdk.IsPageOpen`, to skip the game's own back-button handling while a page is up (the
+  page view closes on the same key press).
+- Fake hub: a client coin wallet (`/__control/client-wallet`) and a payout whose answer is lost
+  (`/__control/drop-after-credit`).
+
 ## [1.2.0] - 2026-10-31
 
 - Unity: safe-area insets (`top`, `bot`) go to Baziness pages in **percent of the screen height**,
@@ -59,7 +76,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Initial public SDK release for Node.js game servers, Java game servers, web games, and Unity games.
 
-[Unreleased]: https://github.com/baziness-com/baziness-sdk/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/baziness-com/baziness-sdk/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/baziness-com/baziness-sdk/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/baziness-com/baziness-sdk/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/baziness-com/baziness-sdk/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/baziness-com/baziness-sdk/compare/v1.0.0...v1.0.1

@@ -12,7 +12,10 @@ public final class Coins {
     public static final class AddResult {
         /** Coins credited by this call (the platform answers with the amount, not the balance); null when already credited. */
         public final Long credited;
-        /** The platform had credited this transaction id before: treat it as paid. */
+        /**
+         * An attempt of this call reached the platform without an answer (timeout, 500) and the platform
+         * refused the retry as already applied: treat it as paid.
+         */
         public final boolean alreadyCredited;
         public final String transactionId;
 
@@ -32,8 +35,12 @@ public final class Coins {
     /**
      * Credit coins. {@code grantKey} says what this payout <b>is</b> ({@code match:17},
      * {@code reward_claim:42}, …): the same payout always gives the same transaction id, so a retry,
-     * a double tap or a crash never pays twice. An id the platform already credited comes back as
-     * {@code alreadyCredited} instead of an error. {@code metadata} (any map) is stored with it.
+     * a double tap or a crash never pays twice. {@code metadata} (any map) is stored with it.
+     * <p>
+     * The platform answers every refusal alike ({@code add resource failed}: wallet short of coins,
+     * id already paid, …). When this call had sent the payout before without an answer, a refusal means
+     * the first attempt was applied: {@code alreadyCredited}. Otherwise it throws
+     * {@link BazinessException#ADD_COIN_REFUSED}: nothing was paid by this call — do not show the coins.
      */
     public AddResult add(long userId, long amount, String grantKey, Map<String, ?> metadata) {
         if (grantKey == null || grantKey.isEmpty()) {
@@ -52,15 +59,20 @@ public final class Coins {
         body.put("amount", amount);
         body.put("transactionId", transactionId);
         body.put("metaData", metadata);
+        Transport.Call call = new Transport.Call("addCoin", "POST", "/client/add-coin", body, true, true);
         try {
-            Map<String, Object> answer = Json.object(transport.request(
-                    new Transport.Call("addCoin", "POST", "/client/add-coin", body, true, true)));
+            Map<String, Object> answer = Json.object(transport.request(call));
             return new AddResult(Json.number(answer, "amount"), false, transactionId);
         } catch (BazinessException e) {
-            if (e.status() == 400 && e.code() != null && e.code().toLowerCase().contains("add resource failed")) {
+            if (e.status() != 400 || e.code() == null || !e.code().toLowerCase().contains("add resource failed")) {
+                throw e;
+            }
+            if (call.resentAfterUnknownOutcome) {
                 return new AddResult(null, true, transactionId);
             }
-            throw e;
+            throw new BazinessException("coins.add: the platform refused the payout (add resource failed): your coin "
+                    + "wallet may be short of coins, or transaction " + transactionId + " was paid by an earlier call",
+                    "addCoin", 400, BazinessException.ADD_COIN_REFUSED);
         }
     }
 

@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 Package Manager → **Add package from git URL**:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.2.0`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.2.1`
 
 That is all: the web view comes with it. The package bundles
 [gree unity-webview](https://github.com/gree/unity-webview) (zlib, see
@@ -53,7 +53,7 @@ spinner and close sprites, sizes, positions, timings, canvas sorting order) in t
 | `Initialize`, `StartAsync`, `RefreshSessionAsync` | session from your server; call `RefreshSessionAsync` after your own login changed the player or the connection to your server was re-established |
 | `Session`, `IsLinkedToAccount`, `SessionChanged` | the current session (null after logout); linked = signed in with a phone number |
 | `OpenPage(BazinessPage.Login / Profile / Shop / GameOffer / Referral)`, `ClosePage` | pages with a fresh link code, safe-area insets, store and platform |
-| `PageOpened`, `PageClosed`, `LoggedIn`, `LoggedOut`, `ShareRequested` | page events (`LoggedIn` carries your server's `/login` answer) |
+| `IsPageOpen`, `PageOpened`, `PageClosed`, `LoggedIn`, `LoggedOut`, `ShareRequested` | page state and events (`LoggedIn` carries your server's `/login` answer); skip your own back-button handling while `IsPageOpen` |
 | `GetCoinBalanceAsync`, `GetReferralRewardCountAsync` | read with the player's 15-minute token |
 | `Analytics.PurchaseStarted / PurchaseFailed / AdImpression / AdRevenue / TutorialBegin / TutorialComplete / LevelStart / LevelComplete / LevelFail / ResourceEarn / ResourceSpend` | player analytics, queued in a file and sent in batches |
 | `HandleDeepLink` (automatic), `SetInstallReferrer`, `SetCampaignAttribution` | first-touch attribution: deep-link `utm_*` / `bz_lc` / `bz_click`, store referrer, the campaign your attribution SDK reports |

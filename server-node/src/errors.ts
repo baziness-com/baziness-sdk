@@ -31,4 +31,9 @@ export const ErrorCodes = Object.freeze({
   refreshTokenExpired: 'refresh_token_expired',
   invalidRefreshToken: 'invalid_refresh_token',
   refreshTokenReused: 'refresh_token_reused',
+  /**
+   * `coins.add`: the platform refused the payout. Your game's coin wallet may be short of coins, or
+   * this transaction id was already paid by an earlier call (the platform does not say which).
+   */
+  addCoinRefused: 'add_coin_refused',
 });

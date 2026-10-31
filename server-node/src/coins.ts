@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { BazinessError } from './errors.js';
+import { BazinessError, ErrorCodes } from './errors.js';
 import type { Transport } from './http.js';
 import type { WireResource } from './wire.js';
 
@@ -22,7 +22,10 @@ export interface AddCoinsInput {
 export interface AddCoinsResult {
   /** Coins credited by this call (the platform answers with the amount, not the balance); null when already credited. */
   credited: number | null;
-  /** The platform had credited this transaction id before: treat it as paid. */
+  /**
+   * An attempt of this call reached the platform without an answer (timeout, 500) and the platform
+   * refused the retry as already applied: treat it as paid.
+   */
   alreadyCredited: boolean;
   transactionId: string;
 }
@@ -32,8 +35,12 @@ export class Coins {
   constructor(private readonly transport: Transport) {}
 
   /**
-   * Credit coins. Safe to retry: the transaction id is derived from `grantKey`, and an id the
-   * platform already credited comes back as `alreadyCredited` instead of an error.
+   * Credit coins. The transaction id is derived from `grantKey`, so the same payout never pays twice.
+   *
+   * The platform answers every refusal alike (`add resource failed`: wallet short of coins, id already
+   * paid, …). When this call had sent the payout before without an answer, a refusal means the first
+   * attempt was applied: `alreadyCredited`. Otherwise it throws `add_coin_refused`
+   * (`ErrorCodes.addCoinRefused`): nothing was paid by this call — do not show the coins.
    */
   async add(input: AddCoinsInput): Promise<AddCoinsResult> {
     if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
@@ -43,6 +50,7 @@ export class Coins {
     if (!transactionId) {
       throw new TypeError('coins.add: pass grantKey (or transactionId) so the payout cannot be paid twice');
     }
+    const outcome = { resentAfterUnknownOutcome: false };
     try {
       const answer = await this.transport.request<WireResource>({
         operation: 'addCoin',
@@ -52,13 +60,20 @@ export class Coins {
         body: { userId: input.userId, amount: input.amount, transactionId, metaData: input.metadata ?? undefined },
         auth: 'client',
         idempotent: true,
+        outcome,
       });
       return { credited: answer.amount, alreadyCredited: false, transactionId };
     } catch (error) {
-      if (error instanceof BazinessError && error.status === 400 && /add resource failed/i.test(error.code ?? '')) {
-        return { credited: null, alreadyCredited: true, transactionId };
+      if (!(error instanceof BazinessError && error.status === 400 && /add resource failed/i.test(error.code ?? ''))) {
+        throw error;
       }
-      throw error;
+      if (outcome.resentAfterUnknownOutcome) return { credited: null, alreadyCredited: true, transactionId };
+      throw new BazinessError(
+        `coins.add: the platform refused the payout (add resource failed): your coin wallet may be short of coins, or transaction ${transactionId} was paid by an earlier call`,
+        'addCoin',
+        400,
+        ErrorCodes.addCoinRefused,
+      );
     }
   }
 

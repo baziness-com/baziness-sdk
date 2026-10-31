@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 — 2026-10-31
+
+- `BazinessSdk.IsPageOpen`: skip your own back-button handling while a page is up.
+
 ## 1.2.0 — 2026-10-31
 
 - Safe-area insets go to pages in percent of the screen height (1.1.0 sent pixels).

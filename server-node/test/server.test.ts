@@ -218,9 +218,31 @@ describe('coins', () => {
     const paid = await baziness.coins.add({ userId, amount: 50, grantKey: 'match:17' });
     assert.deepEqual(paid, { credited: 50, alreadyCredited: false, transactionId: transactionIdFor(userId, 50, 'match:17') });
     await baziness.coins.add({ userId, amount: 20, grantKey: 'match:18' });
-    const again = await baziness.coins.add({ userId, amount: 50, grantKey: 'match:17' });
-    assert.equal(again.alreadyCredited, true);
+    // A later call for the same payout is refused, never paid twice.
+    await assert.rejects(baziness.coins.add({ userId, amount: 50, grantKey: 'match:17' }), { code: 'add_coin_refused' });
     assert.equal(await baziness.coins.balance(userId), 70);
+  });
+
+  it('reports a payout as already credited when its answer was lost and the retry was refused', async () => {
+    const { baziness } = sdk(hub);
+    const { userId } = await baziness.players.signIn(device);
+    await control(hub, 'drop-after-credit', { times: 1 });
+    const paid = await baziness.coins.add({ userId, amount: 50, grantKey: 'match:17' });
+    assert.deepEqual([paid.credited, paid.alreadyCredited], [null, true]);
+    assert.equal(await baziness.coins.balance(userId), 50);
+  });
+
+  it('refuses a payout the game\'s coin wallet cannot cover, so the game never shows unpaid coins', async () => {
+    const { baziness } = sdk(hub);
+    const { userId } = await baziness.players.signIn(device);
+    await control(hub, 'client-wallet', { clientId: 12, balance: 130 });
+    await assert.rejects(baziness.coins.add({ userId, amount: 500, grantKey: 'tutorial' }), (error: unknown) => {
+      assert.ok(error instanceof BazinessError);
+      assert.equal(error.code, 'add_coin_refused');
+      return true;
+    });
+    assert.equal(await baziness.coins.balance(userId), 0);
+    assert.equal((await baziness.coins.add({ userId, amount: 100, grantKey: 'small' })).credited, 100);
   });
 
   it('insists on an idempotency key', async () => {

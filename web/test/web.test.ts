@@ -72,7 +72,7 @@ async function gameServer() {
   return { backend, calls, userId: () => userId };
 }
 
-const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.2.0' } as const;
+const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.2.1' } as const;
 
 describe('launch parameters', () => {
   it('keeps the first touch, takes the link code once and cleans the address', () => {

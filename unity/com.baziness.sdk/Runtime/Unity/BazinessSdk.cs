@@ -78,6 +78,11 @@ namespace Baziness
         public static BackendSession Session => sessions?.Current;
         public static bool IsLinkedToAccount => sessions?.Current?.IsLinkedToAccount ?? false;
         public static DeviceAnalytics Analytics { get; private set; }
+        /// <summary>
+        /// A Baziness page is on screen (or still sliding away). Skip your own back-button handling while it
+        /// is: the page view closes on the same key press.
+        /// </summary>
+        public static bool IsPageOpen => options?.PageView?.IsOpen == true;
         public static CoinBalance Coins { get; private set; }
         public static ReferralRewards Referrals { get; private set; }
 
