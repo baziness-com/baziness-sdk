@@ -1,6 +1,6 @@
 import { DeviceAnalytics, type DeviceAnalyticsOptions } from './analytics.js';
 import type { BackendSession, GameBackend } from './backend.js';
-import { CoinBalance } from './coins.js';
+import { CoinBalance, ReferralRewards } from './coins.js';
 import { collectDevice, SDK_VERSION, type DeviceInfo } from './device.js';
 import { ENVIRONMENTS, type BazinessEnvironment } from './environment.js';
 import { readLaunch, type Attribution, type LaunchParams } from './launch.js';
@@ -67,6 +67,7 @@ export class BazinessWeb {
   readonly launch: LaunchParams;
   readonly analytics: DeviceAnalytics;
   readonly coins: CoinBalance;
+  readonly referrals: ReferralRewards;
 
   private readonly options: BazinessWebOptions;
   private readonly apiBase: string;
@@ -115,6 +116,7 @@ export class BazinessWeb {
     this.analytics.sessionId = uuid();
     this.analytics.appVersion = options.appVersion;
     this.coins = new CoinBalance(this.apiBase, token, fetchImpl);
+    this.referrals = new ReferralRewards(this.apiBase, token, fetchImpl);
     this.overlay = new PageOverlay(options.overlay);
 
     this.sessions.onChange((session) => {

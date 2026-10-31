@@ -1,6 +1,6 @@
 {
   "name": "@baziness/server",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Baziness platform SDK for game servers: client auth, player sessions with refresh tokens, link codes, Gita coins, purchases and trusted analytics.",
   "license": "Apache-2.0",
   "repository": {

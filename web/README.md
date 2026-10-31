@@ -31,4 +31,4 @@ baziness.analytics.levelComplete({ level: 7, score: 1200 });   // one method per
 
 Without a bundler: `<script src="baziness.global.js"></script>` → `window.Baziness.BazinessWeb`.
 
-`npm test` (9 tests against `../tools/fake-hub`), `npm run build` (ESM in `dist/`, 18 KB minified global build).
+`npm test` (10 tests against `../tools/fake-hub`), `npm run build` (ESM in `dist/`, 18 KB minified global build).

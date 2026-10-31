@@ -47,19 +47,20 @@ This document explains how the SDKs fit together and how maintainers test and re
 
 Every SDK is tested against one shared fake of the platform API, [tools/fake-hub](tools/fake-hub)
 (Node, in-memory: access tokens, link codes joining persons, coin idempotency, server-only event
-names, injected failures). Needs Node 18+.
+names, phone lookup, offers, referral rewards, injected failures). Needs Node 18+.
 
 ```bash
 ./scripts/test-all.sh                                 # all four SDKs
-cd server-node && npm ci && npm test                 # 29 tests
-cd server-java && ./build.sh                          # 12 tests, Java 8 jar in out/
-cd web && npm ci && npm test && npm run build         # 9 tests, dist/ + dist/baziness.global.js
-cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 8 tests of the engine-free core (C# 9)
+cd server-node && npm ci && npm test                 # 31 tests
+cd server-java && ./build.sh                          # 13 tests, Java 8 jar in out/
+cd web && npm ci && npm test && npm run build         # 10 tests, dist/ + dist/baziness.global.js
+cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 10 tests of the engine-free core (C# 9)
 ```
 
 The Unity package itself is compiled by opening any Unity 2021.3+ project that references it
 (`"com.baziness.sdk": "file:<path>"` in `Packages/manifest.json`); it was compiled in Unity
-6000.3.21f1 with both samples and gree's `WebViewObject` (0 errors, 0 SDK warnings).
+6000.3.21f1 with the Quick start sample (0 errors, 0 SDK warnings). The bundled web view (`Runtime/WebView`) is
+gree unity-webview; see [Third Party Notices](unity/com.baziness.sdk/Third%20Party%20Notices.md).
 
 Cross-SDK parity: `transactionIdFor(239236, 50, "match:17")` = `239236_50_dc3ee6230b3a94ce5764afe9`
 and `stableEventId("purchase:cafebazaar:order-1")` = `78b6c864-1376-5500-8720-9e4a2e0f87a2` in Node and
@@ -75,7 +76,7 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | `baziness-sdk-js-server-<version>.tgz`, `baziness-sdk-js-web-<version>.tgz` | GitHub Releases | npm package archives built by CI |
 | `baziness-sdk-java-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
 | `baziness-sdk-unity-<version>.tgz` | GitHub Releases | Unity package archive built by CI |
-| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.1.0` |
+| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.2.0` |
 
 Keep all five version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 

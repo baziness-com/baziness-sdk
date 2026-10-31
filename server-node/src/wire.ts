@@ -50,6 +50,17 @@ export interface WireValidateToken {
   isValid: boolean;
 }
 
+export interface WirePhoneDetail {
+  isRegistered: boolean;
+  userId: number | null;
+}
+
+export interface WireOffer {
+  bundle_id: number | null;
+  code?: string | null;
+  message?: string | null;
+}
+
 export interface WireResource {
   resourceId: number;
   amount: number;

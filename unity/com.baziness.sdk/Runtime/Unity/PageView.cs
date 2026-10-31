@@ -4,9 +4,9 @@ using UnityEngine;
 namespace Baziness
 {
     /// <summary>
-    /// How Baziness pages are shown. Import the "gree unity-webview page view" sample for Android/iOS,
-    /// or implement this over your own web view. Messages from the page are raw strings
-    /// (<c>close</c>, <c>login:&lt;token&gt;</c>, … or JSON); the SDK parses them.
+    /// How Baziness pages are shown. The SDK has its own (<see cref="BazinessWebView"/>, the bundled gree
+    /// unity-webview); implement this only to show pages your own way. Messages from the page are raw
+    /// strings (<c>close</c>, <c>login:&lt;token&gt;</c>, … or JSON); the SDK parses them.
     /// </summary>
     public interface IPageView
     {
@@ -18,8 +18,8 @@ namespace Baziness
     }
 
     /// <summary>
-    /// Last resort: opens the page in the system browser. The page cannot send messages back, so
-    /// sign-in is not linked to the player. Use a real web view in a release.
+    /// Where the bundled web view does not run (Windows, Linux, WebGL): the page opens in the system
+    /// browser. It cannot send messages back, so a sign-in there is not linked to the player.
     /// </summary>
     public sealed class ExternalBrowserPageView : IPageView
     {
@@ -28,7 +28,7 @@ namespace Baziness
 
         public void Open(string url, Action<string> onMessage, Action onClosed)
         {
-            Debug.LogWarning("[baziness] no web view configured: opening the page in the browser (no messages come back)");
+            Debug.LogWarning("[baziness] no web view on this platform: opening the page in the browser (no messages come back)");
             Application.OpenURL(url);
             onClosed?.Invoke();
         }

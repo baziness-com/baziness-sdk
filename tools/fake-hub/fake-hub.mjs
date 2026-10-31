@@ -8,6 +8,7 @@
 //
 // Test control (no auth): POST /__control/reset, POST /__control/fail {path, status, times, error},
 // POST /__control/expire-client-tokens, POST /__control/link-code {userId, targetClientId?},
+// POST /__control/offer {playerId, bundleId}, POST /__control/referral-rewards {userId, count},
 // GET /__control/state.
 
 import { createServer } from 'node:http';
@@ -42,6 +43,8 @@ function freshState() {
     serverEvents: [],
     deviceEvents: [],
     quests: [],
+    offers: new Map(), // the game's own player id → bundle id
+    referralRewards: new Map(), // userId → collectable referral rewards
     failures: [], // { path, status, times, error }
     requests: [], // { method, path }
   };
@@ -244,6 +247,14 @@ async function handle(req, res) {
     state.accounts.set(accountId, { accountId, phone: body.phone ?? '09120000000' });
     return sendJson(res, 200, { accountId });
   }
+  if (path === '/__control/offer') {
+    state.offers.set(body.playerId, body.bundleId);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (path === '/__control/referral-rewards') {
+    state.referralRewards.set(body.userId, body.count);
+    return sendJson(res, 200, { ok: true });
+  }
   if (path === '/__control/suspend') {
     state.users.get(body.userId).suspended = true;
     return sendJson(res, 200, { ok: true });
@@ -306,6 +317,12 @@ async function handle(req, res) {
     });
     const result = ingest(forwarded, 'device');
     return sendJson(res, 200, { accepted: result.accepted, rejected: errors.length + result.errors.length, errors: [...errors, ...result.errors] });
+  }
+  if (path === '/api/user/referral-collectable-accounts-count' && req.method === 'GET') {
+    const user = userOfToken(bearer(req) ?? '');
+    if (!user) return fail(res, 401, 'unauthorized');
+    // Like the hub: a bare number.
+    return sendJson(res, 200, state.referralRewards.get(user.userId) ?? 0);
   }
   if (path === '/api/analytics/attribution' && req.method === 'POST') {
     const user = userOfToken(bearer(req) ?? '');
@@ -377,6 +394,19 @@ async function handle(req, res) {
     if (!user) return fail(res, 403, 'access denied');
     const account = user.accountId ? state.accounts.get(user.accountId) : null;
     return sendJson(res, 200, account?.phone ? { accountId: account.accountId, phoneNumber: account.phone, fullName: '', nationalCode: '', isActive: true } : null);
+  }
+  match = path.match(/^\/api\/client\/check-phone-number\/([^/]+)$/);
+  if (match && req.method === 'GET') {
+    // The player of THIS game whose Baziness account has the phone number.
+    const phone = decodeURIComponent(match[1]);
+    const owner = [...state.users.values()].find(
+      (user) => user.clientId === clientId && user.accountId !== null && state.accounts.get(user.accountId)?.phone === phone,
+    );
+    return sendJson(res, 200, owner ? { isRegistered: true, userId: owner.userId } : { isRegistered: false, userId: null });
+  }
+  if (path === '/api/client/get-user-offer' && req.method === 'POST') {
+    const bundleId = state.offers.get(body.user_id);
+    return sendJson(res, 200, bundleId == null ? { bundle_id: null, code: 'no_offer', message: 'no offer' } : { bundle_id: bundleId, code: 'ok', message: '' });
   }
   if (path === '/api/analytics/record-purchase' && req.method === 'POST') {
     if (!ownUser(body.userId)) return fail(res, 400, 'user does not belong to this client');

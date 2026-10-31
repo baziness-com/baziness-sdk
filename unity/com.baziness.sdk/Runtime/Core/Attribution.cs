@@ -30,6 +30,10 @@ namespace Baziness
             string.IsNullOrEmpty(utmContent) && string.IsNullOrEmpty(utmTerm) && string.IsNullOrEmpty(campaignCode) &&
             string.IsNullOrEmpty(clickId) && string.IsNullOrEmpty(referrer) && string.IsNullOrEmpty(installer);
 
+        /// <summary>A campaign is known: UTMs or a Baziness campaign link (the store installer alone is not one).</summary>
+        public bool HasCampaign =>
+            !string.IsNullOrEmpty(utmSource) || !string.IsNullOrEmpty(campaignCode) || !string.IsNullOrEmpty(clickId);
+
         /// <summary>The JSON fields the server SDK reads (<c>Attribution.fromMap</c> / the Node type).</summary>
         public Dictionary<string, object> ToDictionary()
         {

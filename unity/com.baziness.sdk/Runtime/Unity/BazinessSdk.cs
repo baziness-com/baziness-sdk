@@ -17,7 +17,12 @@ namespace Baziness
         public string Store = "Direct";
         /// <summary>Your server's side: sessions, link codes, login, logout. See <see cref="HttpGameBackend"/>.</summary>
         public IGameBackend Backend;
-        /// <summary>The web view for Baziness pages (import the gree sample). Default: the system browser.</summary>
+        /// <summary>How the built-in page view looks (backdrop, spinner, close button). Default: Yatzy's look.</summary>
+        public PageViewStyle PageViewStyle;
+        /// <summary>
+        /// Your own page view, instead of the built-in one (the bundled web view on Android, iOS and macOS,
+        /// the system browser elsewhere).
+        /// </summary>
         public IPageView PageView;
         public string ApiBaseUrlOverride;
         public string PagesBaseUrlOverride;
@@ -32,6 +37,7 @@ namespace Baziness
                 PackageName = settings.packageName,
                 GameName = settings.gameName,
                 Store = settings.store,
+                PageViewStyle = settings.pageView,
                 ApiBaseUrlOverride = settings.apiBaseUrlOverride,
                 PagesBaseUrlOverride = settings.pagesBaseUrlOverride
             };
@@ -45,8 +51,7 @@ namespace Baziness
     /// <code>
     /// BazinessSdk.Initialize(new BazinessOptions {
     ///     Environment = BazinessEnvironment.Staging, PackageName = "com.example.game", GameName = "example",
-    ///     Store = "CafeBazaar", Backend = new HttpGameBackend(new UnityHttp(), "https://api.example.com/baziness"),
-    ///     PageView = GreeWebViewPageView.Create() });
+    ///     Store = "CafeBazaar", Backend = new HttpGameBackend(new UnityHttp(), "https://api.example.com/baziness") });
     /// await BazinessSdk.StartAsync();
     /// await BazinessSdk.OpenPage(BazinessPage.Shop);
     /// </code>
@@ -74,6 +79,7 @@ namespace Baziness
         public static bool IsLinkedToAccount => sessions?.Current?.IsLinkedToAccount ?? false;
         public static DeviceAnalytics Analytics { get; private set; }
         public static CoinBalance Coins { get; private set; }
+        public static ReferralRewards Referrals { get; private set; }
 
         /// <summary>A new session (or null after logout). Your server's extra fields are on <c>Raw</c>.</summary>
         public static event Action<BackendSession> SessionChanged;
@@ -101,7 +107,9 @@ namespace Baziness
             if (string.IsNullOrEmpty(initOptions.PackageName)) throw new ArgumentException("PackageName is required");
             if (initOptions.Backend == null) throw new ArgumentException("Backend is required (see HttpGameBackend)");
             options = initOptions;
-            options.PageView ??= new ExternalBrowserPageView();
+            options.PageView ??= BazinessWebView.IsSupported
+                ? BazinessWebView.Create(options.PageViewStyle)
+                : new ExternalBrowserPageView();
             http = options.Http ?? new UnityHttp();
             apiBase = (string.IsNullOrEmpty(options.ApiBaseUrlOverride) ? BazinessUrls.Api(options.Environment) : options.ApiBaseUrlOverride).TrimEnd('/');
             pagesBase = (string.IsNullOrEmpty(options.PagesBaseUrlOverride) ? BazinessUrls.Pages(options.Environment) : options.PagesBaseUrlOverride).TrimEnd('/');
@@ -121,6 +129,7 @@ namespace Baziness
                 Warn = Debug.LogWarning
             };
             Coins = new CoinBalance(http, apiBase, sessions.Token);
+            Referrals = new ReferralRewards(http, apiBase, sessions.Token);
 
             // A launch from the Baziness app or another game: ?linkCode= on the deep link.
             HandleDeepLink(Application.absoluteURL, false);
@@ -169,6 +178,13 @@ namespace Baziness
             return Coins.Get();
         }
 
+        /// <summary>Referral rewards waiting on the referral page: show it as a badge on your referral button.</summary>
+        public static Task<int> GetReferralRewardCountAsync()
+        {
+            RequireInitialized();
+            return Referrals.Collectable();
+        }
+
         /// <summary>Open a Baziness page over the game with a fresh link code from your server.</summary>
         public static async Task OpenPage(BazinessPage page, Dictionary<string, string> query = null)
         {
@@ -188,8 +204,8 @@ namespace Baziness
                 BuildStore = options.Store == "CafeBazaar" || options.Store == "Myket" ? options.Store : null,
                 Platform = Device.platform,
                 AppVersion = Application.version,
-                TopInset = (int)(Screen.height - safeArea.yMax),
-                BottomInset = (int)safeArea.yMin,
+                TopInset = PageUrl.InsetPercent(Screen.height - safeArea.yMax, Screen.height),
+                BottomInset = PageUrl.InsetPercent(safeArea.yMin, Screen.height),
                 Query = query
             });
             openPage = page;
@@ -218,22 +234,47 @@ namespace Baziness
         /// Before the first session it goes to your server with the attribution; after it, straight to
         /// Baziness (accepted within 24 h of the first open).
         /// </summary>
-        public static async Task SetInstallReferrer(string referrer)
+        public static Task SetInstallReferrer(string referrer)
         {
             RequireInitialized();
-            if (string.IsNullOrEmpty(referrer)) return;
+            if (string.IsNullOrEmpty(referrer)) return Task.CompletedTask;
             var attribution = Attribution ?? new Attribution { landedAt = DateTime.UtcNow.ToString("o") };
-            if (!string.IsNullOrEmpty(attribution.referrer)) return;
+            if (!string.IsNullOrEmpty(attribution.referrer)) return Task.CompletedTask;
             attribution.referrer = referrer;
+            return RecordLateAttribution(attribution);
+        }
+
+        /// <summary>
+        /// The install's campaign as your attribution SDK reports it (Metrix, Adjust, AppsFlyer, …), for
+        /// installs the SDK could not read a campaign link for. First touch wins: ignored once the install
+        /// has a campaign. Sent like <see cref="SetInstallReferrer"/>.
+        /// </summary>
+        public static Task SetCampaignAttribution(string utmSource, string utmMedium = null, string utmCampaign = null,
+            string utmContent = null, string utmTerm = null)
+        {
+            RequireInitialized();
+            if (string.IsNullOrEmpty(utmSource)) return Task.CompletedTask;
+            var attribution = Attribution ?? new Attribution { landedAt = DateTime.UtcNow.ToString("o") };
+            if (attribution.HasCampaign) return Task.CompletedTask;
+            attribution.utmSource = utmSource;
+            attribution.utmMedium = utmMedium;
+            attribution.utmCampaign = utmCampaign;
+            attribution.utmContent = utmContent;
+            attribution.utmTerm = utmTerm;
+            return RecordLateAttribution(attribution);
+        }
+
+        private static async Task RecordLateAttribution(Attribution attribution)
+        {
             attribution.installer ??= Device.installer;
             SaveAttribution(attribution);
-            if (sessions.Current == null) return;
+            if (sessions.Current == null) return; // goes with the first session request
             var result = await http.Send("POST", apiBase + "/analytics/attribution", MiniJson.Serialize(attribution.ToDictionary()),
                 new Dictionary<string, string>
                 {
                     ["Content-Type"] = "application/json", ["Authorization"] = "Bearer " + await sessions.Token()
                 });
-            if (!result.Ok) Debug.LogWarning("[baziness] install referrer not recorded: HTTP " + result.Status);
+            if (!result.Ok) Debug.LogWarning("[baziness] attribution not recorded: HTTP " + result.Status);
         }
 
         private static void OnDeepLink(string url)

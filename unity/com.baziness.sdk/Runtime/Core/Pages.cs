@@ -29,7 +29,10 @@ namespace Baziness
         public string BuildStore;
         public string Platform;
         public string AppVersion;
-        /// <summary>Safe-area insets in pixels, so the page keeps clear of a notch.</summary>
+        /// <summary>
+        /// Safe-area insets in <b>percent of the screen height</b> (the page applies them as <c>vh</c>), so
+        /// it keeps clear of a notch. <see cref="PageUrl.InsetPercent"/> converts pixels.
+        /// </summary>
         public int TopInset;
         public int BottomInset;
         public Dictionary<string, string> Query;
@@ -47,6 +50,13 @@ namespace Baziness
                 case BazinessPage.Referral: return "/referral";
                 default: return "/";
             }
+        }
+
+        /// <summary>A safe-area inset in pixels as the page's <c>top</c> / <c>bot</c> take it: percent of the screen height, rounded up.</summary>
+        public static int InsetPercent(float insetPixels, float screenHeight)
+        {
+            if (insetPixels <= 0 || screenHeight <= 0) return 0;
+            return (int)Math.Ceiling(Math.Round(insetPixels / screenHeight * 100, 3));
         }
 
         /// <summary>The page address with every parameter the page needs (see the wiki's page table).</summary>

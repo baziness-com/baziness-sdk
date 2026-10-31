@@ -15,6 +15,7 @@ import type {
   WireAccountData,
   WireAttribution,
   WireLinkCode,
+  WirePhoneDetail,
   WireRefreshResponse,
   WireUserSession,
   WireValidateToken,
@@ -178,6 +179,22 @@ export class Players {
       );
     }
     await this.store.set(userId, null);
+  }
+
+  /**
+   * The Baziness user id of your player who signed in with this phone number, or null when none of
+   * your players did (for example to reward a phone number a campaign or partner sends you).
+   */
+  async findByPhone(phoneNumber: string): Promise<number | null> {
+    if (!phoneNumber?.trim()) throw new TypeError('players.findByPhone: phoneNumber is required');
+    const answer = await this.transport.request<WirePhoneDetail>({
+      operation: 'checkPhoneNumber',
+      method: 'GET',
+      path: `/client/check-phone-number/${encodeURIComponent(phoneNumber.trim())}`,
+      auth: 'client',
+      idempotent: true,
+    });
+    return answer.isRegistered && answer.userId ? answer.userId : null;
   }
 
   /** The player's Baziness account (phone, name), or null when they have not signed in. */

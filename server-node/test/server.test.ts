@@ -193,6 +193,16 @@ describe('players', () => {
     assert.equal(await accessTokenCalls(), 1);
   });
 
+  it('finds a player by phone number, only among its own players', async () => {
+    const { baziness } = sdk(hub);
+    const { userId } = await baziness.players.signIn(device);
+    assert.equal(await baziness.players.findByPhone('09121234567'), null);
+    await control(hub, 'phone-login', { userId, phone: '09121234567' });
+    assert.equal(await baziness.players.findByPhone('09121234567'), userId);
+    const other = sdk(hub, { clientId: 13, clientSecret: 'fake-client-secret-13' }).baziness;
+    assert.equal(await other.players.findByPhone('09121234567'), null);
+  });
+
   it('refuses another game\'s player', async () => {
     const other = sdk(hub, { clientId: 13, clientSecret: 'fake-client-secret-13' }).baziness;
     const stranger = await other.players.signIn(device);
@@ -329,6 +339,13 @@ describe('purchases and analytics', () => {
     await baziness.close(1000); // close sends the rest without waiting for the backoff
     assert.equal(baziness.analytics.pending, 0);
     assert.ok((await state()).serverEvents.some((e) => e.eventKey === 'tutorial_complete'));
+  });
+
+  it('reads the offer for a player', async () => {
+    const { baziness } = sdk(hub);
+    assert.equal(await baziness.offers.get(42), null);
+    await control(hub, 'offer', { playerId: 42, bundleId: 7 });
+    assert.equal(await baziness.offers.get(42), 7);
   });
 
   it('advances a quest', async () => {

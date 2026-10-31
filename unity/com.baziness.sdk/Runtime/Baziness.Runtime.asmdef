@@ -1,7 +1,10 @@
 {
   "name": "Baziness.Runtime",
   "rootNamespace": "Baziness",
-  "references": [],
+  "references": [
+    "Baziness.WebView",
+    "UnityEngine.UI"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

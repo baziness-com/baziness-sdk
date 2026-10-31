@@ -6,8 +6,9 @@ import { silentLogger, Transport, type FetchLike, type HttpOptions, type Logger 
 import { Players } from './players.js';
 import { Purchases } from './purchases.js';
 import type { RefreshTokenStore } from './types.js';
+import type { WireOffer } from './wire.js';
 
-export const SDK_VERSION = '1.1.0';
+export const SDK_VERSION = '1.2.0';
 
 export interface BazinessServerOptions {
   /** `staging` while you integrate and test; `production` after the platform team's review. */
@@ -54,6 +55,7 @@ export class BazinessServer {
   readonly purchases: Purchases;
   readonly analytics: ServerAnalytics;
   readonly quests: Quests;
+  readonly offers: Offers;
 
   private readonly apiBase: string;
 
@@ -87,6 +89,7 @@ export class BazinessServer {
     this.coins = new Coins(transport);
     this.purchases = new Purchases(transport, this.analytics);
     this.quests = new Quests(transport);
+    this.offers = new Offers(transport);
   }
 
   /**
@@ -143,5 +146,26 @@ export class Quests {
       idempotent: false,
       expectJson: false,
     });
+  }
+}
+
+/** Personal offers from the Baziness offer engine: which shop bundle to show a player now. */
+export class Offers {
+  constructor(private readonly transport: Transport) {}
+
+  /**
+   * The bundle to offer this player, or null when there is none now. `playerId` is **your** player
+   * id, the one the offer engine was set up with for your game (not the Baziness user id).
+   */
+  async get(playerId: number): Promise<number | null> {
+    const answer = await this.transport.request<WireOffer>({
+      operation: 'getOffer',
+      method: 'POST',
+      path: '/client/get-user-offer',
+      body: { user_id: playerId },
+      auth: 'client',
+      idempotent: true,
+    });
+    return typeof answer?.bundle_id === 'number' ? answer.bundle_id : null;
   }
 }

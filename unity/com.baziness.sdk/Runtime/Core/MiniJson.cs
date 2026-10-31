@@ -39,9 +39,17 @@ namespace Baziness
             return obj.TryGetValue(key, out var value) && value != null ? Convert.ToString(value, CultureInfo.InvariantCulture) : null;
         }
 
+        /// <summary>A whole number: parsed JSON gives doubles, a game backend's own dictionary may hold longs or ints.</summary>
         public static long Long(Dictionary<string, object> obj, string key)
         {
-            return obj.TryGetValue(key, out var value) && value is double number ? (long)number : 0L;
+            if (!obj.TryGetValue(key, out var value)) return 0L;
+            switch (value)
+            {
+                case double number: return (long)number;
+                case long number: return number;
+                case int number: return number;
+                default: return 0L;
+            }
         }
 
         public static bool Bool(Dictionary<string, object> obj, string key)

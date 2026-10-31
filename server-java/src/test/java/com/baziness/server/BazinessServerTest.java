@@ -111,6 +111,18 @@ public final class BazinessServerTest {
                 check(!baziness.players().session(player.userId).accessToken.equals(player.accessToken),
                         "after logout the next session asks the platform again");
             });
+            test("finds a player by phone number and reads the player's offer", () -> {
+                BazinessServer baziness = sdk(null);
+                long userId = baziness.players().signIn(new SignInRequest("d", "Android", "CafeBazaar")).userId;
+                equal(baziness.players().findByPhone("09121234567"), 0L);
+                control("phone-login", "{\"userId\":" + userId + ",\"phone\":\"09121234567\"}");
+                equal(baziness.players().findByPhone("09121234567"), userId);
+                equal(sdk(null, 13, "fake-client-secret-13").players().findByPhone("09121234567"), 0L);
+
+                check(baziness.offers().get(42) == null, "no offer yet");
+                control("offer", "{\"playerId\":42,\"bundleId\":7}");
+                equal(baziness.offers().get(42), 7);
+            });
             test("pays a grant once and re-authenticates after the client token expires", () -> {
                 BazinessServer baziness = sdk(new MemoryRefreshTokenStore());
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;

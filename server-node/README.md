@@ -26,7 +26,9 @@ await baziness.purchases.record({ userId, amount: 49000, gateway: 'cafebazaar', 
 baziness.analytics.sessions.start(userId, { device });                   // on connect
 baziness.analytics.levelComplete(userId, { level: 7, score: 1200 });     // one method per event
 baziness.analytics.sessions.end(userId);                                 // on disconnect
+const bazinessUserId = await baziness.players.findByPhone('09121234567'); // or null
+const bundleId = await baziness.offers.get(playerId);                    // your player id; or null
 await baziness.close();                                                   // on shutdown
 ```
 
-`npm test` runs 28 tests against the shared fake platform in `../tools/fake-hub`.
+`npm test` runs 31 tests against the shared fake platform in `../tools/fake-hub`.

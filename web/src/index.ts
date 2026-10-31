@@ -6,7 +6,7 @@ export { ENVIRONMENTS } from './environment.js';
 export type { BazinessEnvironment, EnvironmentUrls } from './environment.js';
 export { DeviceAnalytics, EVENT_NAME_PATTERN, SERVER_ONLY_EVENTS } from './analytics.js';
 export type { AdPlacement, DeviceAnalyticsOptions, PropValue, PurchaseGateway } from './analytics.js';
-export { CoinBalance } from './coins.js';
+export { CoinBalance, ReferralRewards } from './coins.js';
 export { SDK_VERSION, collectDevice } from './device.js';
 export type { DeviceInfo } from './device.js';
 export { readLaunch } from './launch.js';

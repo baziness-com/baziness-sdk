@@ -4,10 +4,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.NoRouteToHostException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -305,6 +307,15 @@ final class Transport {
             return new String(buffer.toByteArray(), StandardCharsets.UTF_8);
         } finally {
             stream.close();
+        }
+    }
+
+    /** One path segment, percent-encoded ({@code +} and spaces included). */
+    static String encodePath(String segment) {
+        try {
+            return URLEncoder.encode(segment, "UTF-8").replace("+", "%20");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException(e);
         }
     }
 

@@ -24,6 +24,9 @@ namespace Baziness
         [Tooltip("Base URL of your game server's Baziness routes (/session, /link-code, /login, /logout), for HttpGameBackend.")]
         public string gameServerUrl;
 
+        [Tooltip("How Baziness pages look while they open and load. The defaults are Yatzy's.")]
+        public PageViewStyle pageView = new PageViewStyle();
+
         [Tooltip("Optional overrides, e.g. a local platform stack.")]
         public string apiBaseUrlOverride;
         public string pagesBaseUrlOverride;

@@ -1,4 +1,4 @@
-export { BazinessServer, Quests, SDK_VERSION } from './server.js';
+export { BazinessServer, Offers, Quests, SDK_VERSION } from './server.js';
 export type { BazinessServerOptions, PublicConfig } from './server.js';
 export { ENVIRONMENTS, resolveApiBase } from './environment.js';
 export type { BazinessEnvironment, EnvironmentUrls } from './environment.js';

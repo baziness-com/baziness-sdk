@@ -168,6 +168,19 @@ public final class Players {
         store.set(userId, null);
     }
 
+    /**
+     * The Baziness user id of your player who signed in with this phone number, or 0 when none of your
+     * players did (for example to reward a phone number a campaign or partner sends you).
+     */
+    public long findByPhone(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            throw new IllegalArgumentException("players.findByPhone: phoneNumber is required");
+        }
+        Map<String, Object> answer = Json.object(transport.request(new Transport.Call("checkPhoneNumber", "GET",
+                "/client/check-phone-number/" + Transport.encodePath(phoneNumber.trim()), null, true, true)));
+        return Json.bool(answer, "isRegistered") ? Json.number(answer, "userId") : 0;
+    }
+
     /** The player's Baziness account ({@code phoneNumber}, {@code fullName}, …), or null before they sign in. */
     public Map<String, Object> accountData(long userId) {
         Object answer = transport.request(

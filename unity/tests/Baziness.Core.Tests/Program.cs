@@ -48,6 +48,14 @@ internal static class Program
             Check(login.StartsWith("https://baziness.com/?") && login.Contains("allowGuest=false"), "login at the root");
             return Task.CompletedTask;
         });
+        await Test("safe-area insets go to the page in percent of the screen height", () =>
+        {
+            Equal(PageUrl.InsetPercent(80, 2400), 4);
+            Equal(PageUrl.InsetPercent(120, 2400), 5);
+            Equal(PageUrl.InsetPercent(0, 2400), 0);
+            Equal(PageUrl.InsetPercent(80, 0), 0);
+            return Task.CompletedTask;
+        });
         await Test("page messages from a native web view and from an iframe", () =>
         {
             Equal(PageMessage.Parse("close").Type, PageMessageType.Close);
@@ -70,6 +78,8 @@ internal static class Program
             Equal(launch.Attribution.campaignCode, "c1");
             Equal(launch.Attribution.landedAt, "2026-10-24T10:00:00.000Z");
             Equal(LaunchParams.Parse("yatzy://open", DateTime.UtcNow).Attribution, null);
+            Check(launch.Attribution.HasCampaign, "UTMs are a campaign");
+            Check(!new Attribution { installer = "com.farsitel.bazaar" }.HasCampaign, "the installer alone is not");
             return Task.CompletedTask;
         });
         await Test("JSON round trip (dictionaries, numbers, unicode)", () =>
@@ -78,6 +88,10 @@ internal static class Program
             Equal(json, "{\"a\":[1,2.5,true,null],\"b\":\"x\\\"é\"}");
             var back = MiniJson.Object(MiniJson.Deserialize(json));
             Equal(MiniJson.String(back, "b"), "x\"é");
+            // A game backend builds the session from its own values (SmartFox longs), not from JSON.
+            var session = BackendSession.FromDictionary(new Dictionary<string, object> { ["userId"] = 42L, ["isLinkedToAccount"] = true });
+            Equal(session.UserId, 42L);
+            Check(session.IsLinkedToAccount, "linked");
             return Task.CompletedTask;
         });
         await Test("session: the launch link code is sent once, the token is reused", async () =>
@@ -97,6 +111,16 @@ internal static class Program
             var sessions = new SessionManager(server, new DeviceInfo { deviceId = "unity-2" });
             await sessions.Get();
             Equal(await new CoinBalance(new ClientHttp(), apiBase, sessions.Token).Get(), 0L);
+        });
+        await Test("referral rewards waiting for the player", async () =>
+        {
+            var server = await GameServer.Create();
+            var sessions = new SessionManager(server, new DeviceInfo { deviceId = "unity-5" });
+            var session = await sessions.Get();
+            var referrals = new ReferralRewards(new ClientHttp(), apiBase, sessions.Token);
+            Equal(await referrals.Collectable(), 0);
+            await Control("referral-rewards", "{\"userId\":" + session.UserId + ",\"count\":3}");
+            Equal(await referrals.Collectable(), 3);
         });
         await Test("analytics: persisted queue, server-only names refused, one batch sent", async () =>
         {

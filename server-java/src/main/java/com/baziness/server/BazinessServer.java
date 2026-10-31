@@ -12,7 +12,7 @@ import java.util.Map;
  * </pre>
  */
 public final class BazinessServer {
-    public static final String SDK_VERSION = "1.1.0";
+    public static final String SDK_VERSION = "1.2.0";
 
     private final Environment environment;
     private final String apiBase;
@@ -21,6 +21,7 @@ public final class BazinessServer {
     private final Purchases purchases;
     private final ServerAnalytics analytics;
     private final Quests quests;
+    private final Offers offers;
 
     private BazinessServer(Builder builder) {
         this.environment = builder.environment;
@@ -37,6 +38,7 @@ public final class BazinessServer {
         this.coins = new Coins(transport);
         this.purchases = new Purchases(transport, analytics);
         this.quests = new Quests(transport);
+        this.offers = new Offers(transport);
     }
 
     public static Builder builder(Environment environment, long clientId, String clientSecret) {
@@ -89,6 +91,10 @@ public final class BazinessServer {
 
     public Quests quests() {
         return quests;
+    }
+
+    public Offers offers() {
+        return offers;
     }
 
     /** Ends open sessions and sends the remaining analytics. Call it on shutdown. */

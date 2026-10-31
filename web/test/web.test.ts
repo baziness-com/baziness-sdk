@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { DeviceAnalytics } from '../src/analytics.js';
-import { CoinBalance } from '../src/coins.js';
+import { CoinBalance, ReferralRewards } from '../src/coins.js';
 import { parseBrowser, parseOs } from '../src/device.js';
 import { readLaunch } from '../src/launch.js';
 import { pageUrl, parsePageMessage } from '../src/pages.js';
@@ -72,7 +72,7 @@ async function gameServer() {
   return { backend, calls, userId: () => userId };
 }
 
-const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.1.0' } as const;
+const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.2.0' } as const;
 
 describe('launch parameters', () => {
   it('keeps the first touch, takes the link code once and cleans the address', () => {
@@ -162,6 +162,16 @@ describe('session, coins and analytics against the platform', () => {
     await sessions.get();
     const coins = new CoinBalance(hub.apiBase, (force) => sessions.token(force), fetch);
     assert.equal(await coins.balance(), 0);
+  });
+
+  it('reads the referral rewards waiting for the player', async () => {
+    const server = await gameServer();
+    const sessions = new SessionManager(server.backend, device, { linkCode: null, attribution: null });
+    const session = await sessions.get();
+    const referrals = new ReferralRewards(hub.apiBase, (force) => sessions.token(force), fetch);
+    assert.equal(await referrals.collectable(), 0);
+    await control('referral-rewards', { userId: session.userId, count: 3 });
+    assert.equal(await referrals.collectable(), 3);
   });
 
   it('queues events in storage, refuses server-only names and sends one batch', async () => {

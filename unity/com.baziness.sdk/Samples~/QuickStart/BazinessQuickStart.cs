@@ -20,7 +20,7 @@ namespace Baziness.Samples
         {
             var backend = new HttpGameBackend(new UnityHttp(), settings.gameServerUrl,
                 () => new Dictionary<string, string> { ["Authorization"] = "Bearer " + gamePlayerToken });
-            BazinessSdk.Initialize(settings, backend /*, GreeWebViewPageView.Create() once the gree sample is imported */);
+            BazinessSdk.Initialize(settings, backend); // pages open in the built-in web view
             BazinessSdk.PageClosed += _ => RefreshBalance();
             BazinessSdk.LoggedOut += () => Debug.Log("Signed out on a page: clear local player data and start over");
 
