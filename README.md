@@ -26,8 +26,10 @@ This document explains how the SDKs fit together and how maintainers test and re
    │◄── 15-min access token ──────────│── v2/client/link-code ─────────────────► pages
    │── user/get-coin, events/batch, analytics/attribution/resolve ───────────────► hub
    │── open page ?linkCode= ────────────────────────────────────────────────────► baziness.com
+   │── open checkout /buy?…&bztoken=, get_payment ──────────────────────────────► Baziness Pay
                                       │── add-coin, record-purchase, server-events ► hub
                                       │── v2/client/attribution (the install's campaign) ► hub
+                                      │── get_payment, verify_payment, consume ──► Baziness Pay
 ```
 
 - The **server SDK** owns everything secret or trusted: the client secret, coin grants, purchases,
@@ -44,6 +46,9 @@ This document explains how the SDKs fit together and how maintainers test and re
   and `BazinessSdk.GetCampaignAsync()` (Unity) answer the install's campaign. One still pending (no
   campaign link, UTMs, store referrer or APK campaign within 24 h of first open) is first matched by
   the device's fingerprint to a recent campaign link click (`matchType: 'probabilistic'`).
+- **Baziness Pay** (the web checkout): the device SDKs open the checkout page with the player's token
+  and, when the player taps "Complete purchase", find the paid payment; the server SDKs verify its token
+  and consume it after the game granted it. Pay reports these payments itself.
 - **One account across games**: pages are opened with one-time link codes; opening another game
   from a page hands over a link code, and the next game's `players.signIn({ linkCode })` joins the
   same Baziness person.
@@ -52,14 +57,14 @@ This document explains how the SDKs fit together and how maintainers test and re
 
 Every SDK is tested against one shared fake of the platform API, [tools/fake-hub](tools/fake-hub)
 (Node, in-memory: access tokens, link codes joining persons, coin idempotency, server-only event
-names, phone lookup, offers, referral rewards, campaign link clicks and fingerprint matching, injected failures). Needs Node 18+.
+names, phone lookup, offers, referral rewards, campaign link clicks and fingerprint matching, Baziness Pay payments, injected failures). Needs Node 18+.
 
 ```bash
 ./scripts/test-all.sh                                 # all four SDKs
-cd server-node && npm ci && npm test                 # 35 tests
-cd server-java && ./build.sh                          # 15 tests, Java 8 jar in out/
-cd web && npm ci && npm test && npm run build         # 12 tests, dist/ + dist/baziness.global.js
-cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 11 tests of the engine-free core (C# 9)
+cd server-node && npm ci && npm test                 # 41 tests
+cd server-java && ./build.sh                          # 17 tests, Java 8 jar in out/
+cd web && npm ci && npm test && npm run build         # 13 tests, dist/ + dist/baziness.global.js
+cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 12 tests of the engine-free core (C# 9)
 ```
 
 The Unity package itself is compiled by opening any Unity 2021.3+ project that references it
@@ -81,7 +86,7 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | `baziness-sdk-js-server-<version>.tgz`, `baziness-sdk-js-web-<version>.tgz` | GitHub Releases | npm package archives built by CI |
 | `baziness-sdk-java-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
 | `baziness-sdk-unity-<version>.tgz` | GitHub Releases | Unity package archive built by CI |
-| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.4.0` |
+| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.5.0` |
 
 Keep all five version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 

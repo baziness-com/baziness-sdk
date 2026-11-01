@@ -6,6 +6,7 @@ import { collectDevice, refineDevice, SDK_VERSION, type DeviceInfo } from './dev
 import { ENVIRONMENTS, type BazinessEnvironment } from './environment.js';
 import { readLaunch, type Attribution, type LaunchParams } from './launch.js';
 import { PageOverlay, pageUrl, parsePageMessage, type OverlayOptions, type PageMessage, type PageName } from './pages.js';
+import { BazinessPay } from './pay.js';
 import { SessionManager } from './session.js';
 import { browserStore, uuid, type KeyValueStore } from './storage.js';
 
@@ -26,6 +27,10 @@ export interface BazinessWebOptions {
   /** Overrides, e.g. a local platform stack. */
   apiBaseUrl?: string;
   pagesBaseUrl?: string;
+  /** The Baziness Pay address your game already uses, instead of the environment's. */
+  payBaseUrl?: string;
+  /** Your app in Baziness Pay (Pay's `pname`). Default: `packageName`. */
+  payPackageName?: string;
   /** Read launch parameters from this address instead of `location.href`. */
   href?: string;
   storage?: KeyValueStore;
@@ -71,6 +76,8 @@ export class BazinessWeb {
   readonly referrals: ReferralRewards;
   /** The player's install campaign (`campaign.get()`), matched by this device's fingerprint while pending. */
   readonly campaign: InstallCampaign;
+  /** Baziness Pay, the web checkout: `openCheckout`, then `findPayment` when the player says they paid. */
+  readonly pay: BazinessPay;
 
   private readonly options: BazinessWebOptions;
   private readonly apiBase: string;
@@ -122,6 +129,7 @@ export class BazinessWeb {
     this.coins = new CoinBalance(this.apiBase, token, fetchImpl);
     this.referrals = new ReferralRewards(this.apiBase, token, fetchImpl);
     this.campaign = new InstallCampaign(this.apiBase, token, this.device, fetchImpl);
+    this.pay = new BazinessPay(options.payBaseUrl ?? urls.pay, options.payPackageName ?? options.packageName, token, fetchImpl);
     this.overlay = new PageOverlay(options.overlay);
     this.refined = refineDevice(this.device);
 

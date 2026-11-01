@@ -1,6 +1,6 @@
 export { BazinessServer, Offers, Quests, SDK_VERSION } from './server.js';
 export type { BazinessServerOptions, PublicConfig } from './server.js';
-export { ENVIRONMENTS, resolveApiBase } from './environment.js';
+export { ENVIRONMENTS, resolveApiBase, resolvePayBase } from './environment.js';
 export type { BazinessEnvironment, EnvironmentUrls } from './environment.js';
 export { BazinessError, ErrorCodes } from './errors.js';
 export { silentLogger } from './http.js';
@@ -16,6 +16,8 @@ export type {
 } from './players.js';
 export { Coins, transactionIdFor } from './coins.js';
 export type { AddCoinsInput, AddCoinsResult } from './coins.js';
+export { Pay } from './pay.js';
+export type { BazinessPayment } from './pay.js';
 export { Purchases } from './purchases.js';
 export type { RecordPurchaseInput } from './purchases.js';
 export { EVENT_NAME_PATTERN, ServerAnalytics, SessionTracker, deviceProps, stableEventId } from './analytics.js';

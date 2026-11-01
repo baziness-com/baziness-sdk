@@ -19,6 +19,7 @@ import java.util.Map;
 public final class BazinessServerTest {
     private static String controlBase;
     private static String apiBase;
+    private static String payBase;
     private static int passed;
     private static final List<String> failures = new ArrayList<String>();
 
@@ -201,6 +202,36 @@ public final class BazinessServerTest {
                 }
                 equal(keys.toString(), "[auth_login, session_start, device_info, level_complete, iap_purchase_completed, session_end]");
             });
+            test("Baziness Pay: finds, verifies the token of and consumes a paid payment once", () -> {
+                Pay pay = sdk(null).pay("com.example.game");
+                check(pay.find(7, "gems_100") == null, "nothing paid yet");
+                String token = Json.string(Json.object(control("pay-payment", "{\"uid\":7,\"sku\":\"gems_100\"}")), "token");
+                Pay.Payment payment = pay.find(7, "gems_100");
+                equal(payment.token, token);
+                equal(payment.amount, 49000L);
+                check(pay.verify(7, "gems_100", token), "its own token");
+                check(!pay.verify(7, "gems_100", "made-up-token"), "not another token, though Pay alone accepts it");
+                check(!pay.verify(8, "gems_100", token), "not another player");
+                check(pay.consume(7, "gems_100"), "consumed");
+                check(!pay.consume(7, "gems_100"), "nothing left to consume");
+                check(!pay.verify(7, "gems_100", token), "consumed");
+            });
+            test("Baziness Pay: the bank checks a payment it did not report back; a lost consume answer still counts", () -> {
+                Pay pay = sdk(null).pay("com.example.game");
+                String token = Json.string(Json.object(control("pay-payment",
+                        "{\"uid\":7,\"sku\":\"gems_100\",\"status\":\"ready\"}")), "token");
+                check(!pay.verify(7, "gems_100", "other"), "not another token");
+                check(pay.verify(7, "gems_100", token), "the gateway's token");
+                control("drop-after-consume", "{\"times\":1}");
+                check(pay.consume(7, "gems_100"), "consumed though the answer was lost");
+                try {
+                    sdk(null).pay("com.unknown.game").find(7, "gems_100");
+                    throw new AssertionError("expected an exception");
+                } catch (BazinessException e) {
+                    equal(e.code(), "no_required_params");
+                }
+                equal(BazinessServer.builder(Environment.PRODUCTION, 12, "x").build().payBase(), "https://pay.baziness.com");
+            });
             test("keeps events while the platform is unavailable and sends them on close", () -> {
                 HttpOptions http = new HttpOptions();
                 http.maxAttempts = 1;
@@ -250,7 +281,7 @@ public final class BazinessServerTest {
         AnalyticsOptions analytics = new AnalyticsOptions();
         analytics.flushIntervalMs = 60000;
         return BazinessServer.builder(Environment.STAGING, clientId, secret)
-                .apiBaseUrl(apiBase).refreshTokens(store).http(http).analytics(analytics)
+                .apiBaseUrl(apiBase).payBaseUrl(payBase).refreshTokens(store).http(http).analytics(analytics)
                 .logger(BazinessLogger.SILENT).build();
     }
 
@@ -323,6 +354,7 @@ public final class BazinessServerTest {
         String port = line.substring("fake-hub listening on ".length()).trim();
         controlBase = "http://127.0.0.1:" + port + "/__control/";
         apiBase = "http://127.0.0.1:" + port + "/api";
+        payBase = "http://127.0.0.1:" + port + "/pay";
         Map<String, Object> ignored = new LinkedHashMap<String, Object>();
         ignored.clear();
         return process;

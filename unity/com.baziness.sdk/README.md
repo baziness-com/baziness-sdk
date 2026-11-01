@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 Package Manager → **Add package from git URL**:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.4.0`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.5.0`
 
 That is all: the web view comes with it. The package bundles
 [gree unity-webview](https://github.com/gree/unity-webview) (zlib, see
@@ -37,6 +37,27 @@ long balance = await BazinessSdk.GetCoinBalanceAsync();
 BazinessSdk.Analytics.LevelComplete("7", 1200);       // one method per event
 ```
 
+## Baziness Pay
+
+Packages registered in Baziness Pay are paid on its web checkout, in the browser. Don't wait for the
+game to come back to the foreground: show a dialog that asks the player to tap "Complete purchase"
+once they have paid, and open the checkout:
+
+```csharp
+ShowCompletePurchaseDialog(onComplete: CompletePurchase);
+await BazinessSdk.OpenCheckoutAsync(sku, playerId);       // your player id; with the player's Baziness token
+
+async void CompletePurchase()
+{
+    var payment = await BazinessSdk.FindPaymentAsync(sku, playerId);
+    if (payment == null) ShowNotPaidYet();                // keep the dialog: they can tap again
+    else MyServer.CompletePurchase(sku, payment.Token);   // server SDK: pay.verify, grant once, pay.consume
+}
+```
+
+`BazinessOptions.PayBaseUrlOverride` and `PayPackageName` (default: `PackageName`) override the Pay
+address and app name. Pay reports these payments to Baziness itself.
+
 ## The page view
 
 `BazinessWebView` shows a page over the game. It appears the moment `OpenPage` is called: a backdrop
@@ -58,6 +79,7 @@ spinner and close sprites, sizes, positions, timings, canvas sorting order) in t
 | `IsPageOpen`, `PageOpened`, `PageClosed`, `LoggedIn`, `LoggedOut`, `ShareRequested` | page state and events (`LoggedIn` carries your server's `/login` answer); skip your own back-button handling while `IsPageOpen` |
 | `GetCoinBalanceAsync`, `GetReferralRewardCountAsync` | read with the player's 15-minute token |
 | `GetCampaignAsync` | the install's campaign; one still pending (24 h after first open, no campaign) is matched by this device's fingerprint to a recent campaign link click (`matchType` `probabilistic`) |
+| `OpenCheckoutAsync`, `FindPaymentAsync`, `Pay` | Baziness Pay: open the checkout page, find the payment when the player says they paid |
 | `Analytics.PurchaseStarted / PurchaseFailed / AdImpression / AdRevenue / TutorialBegin / TutorialComplete / LevelStart / LevelComplete / LevelFail / ResourceEarn / ResourceSpend` | player analytics, queued in a file and sent in batches |
 | `HandleDeepLink` (automatic), `SetInstallReferrer`, `SetCampaignAttribution` | first-touch attribution: deep-link `utm_*` / `bz_lc` / `bz_click`, store referrer, the campaign your attribution SDK reports |
 | `Device`, `Attribution` | what goes to your server with every session request |

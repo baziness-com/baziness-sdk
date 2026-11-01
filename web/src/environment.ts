@@ -6,6 +6,7 @@ export interface EnvironmentUrls {
   api: string;
   /** Baziness pages. Messages from a page are accepted only from this origin. */
   pages: string;
+  /** Baziness Pay, the web checkout. */
   pay: string;
 }
 

@@ -8,6 +8,7 @@ import { CoinBalance, ReferralRewards } from '../src/coins.js';
 import { collectDevice, parseBrowser, parseOs } from '../src/device.js';
 import { readLaunch } from '../src/launch.js';
 import { pageUrl, parsePageMessage } from '../src/pages.js';
+import { BazinessPay } from '../src/pay.js';
 import { SessionManager } from '../src/session.js';
 import { memoryStore } from '../src/storage.js';
 import type { GameBackend } from '../src/backend.js';
@@ -73,7 +74,7 @@ async function gameServer(platform = 'Web') {
   return { backend, calls, userId: () => userId };
 }
 
-const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.4.0' } as const;
+const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.5.0' } as const;
 
 describe('launch parameters', () => {
   it('keeps the first touch, takes the link code once and cleans the address', () => {
@@ -250,5 +251,29 @@ describe('session, coins and analytics against the platform', () => {
     await analytics.flush(true); // a page hide sends at once, despite the backoff
     assert.equal(analytics.pending, 0);
     analytics.stop();
+  });
+});
+
+describe('baziness pay', () => {
+  const payBase = () => `http://127.0.0.1:${hub.port}/pay`;
+
+  it('opens the checkout with the player token, then finds the payment once paid', async () => {
+    const server = await gameServer();
+    const sessions = new SessionManager(server.backend, device, { linkCode: null, attribution: null });
+    const session = await sessions.get();
+    const pay = new BazinessPay(`${payBase()}/`, 'com.example.game', (force) => sessions.token(force), fetch);
+    assert.equal(
+      await pay.checkoutUrl('gems 100', 7),
+      `${payBase()}/buy?sku=gems+100&uid=7&pname=com.example.game&bztoken=${encodeURIComponent(session.accessToken)}`,
+    );
+    const anonymous = new BazinessPay(payBase(), 'com.example.game', () => Promise.reject(new Error('no session')), fetch);
+    assert.equal(await anonymous.checkoutUrl('gems_100', 7), `${payBase()}/buy?sku=gems_100&uid=7&pname=com.example.game`);
+
+    assert.equal(await pay.findPayment('gems_100', 7), null);
+    const paid = await control<{ token: string }>('pay-payment', { uid: 7, sku: 'gems_100' });
+    const payment = await pay.findPayment('gems_100', 7);
+    assert.equal(payment?.token, paid.token);
+    assert.equal(payment?.amount, 49000);
+    await assert.rejects(new BazinessPay(payBase(), 'com.unknown.game', () => Promise.resolve(''), fetch).findPayment('gems_100', 7), /registered in Baziness Pay/);
   });
 });

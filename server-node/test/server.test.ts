@@ -407,3 +407,68 @@ describe('purchases and analytics', () => {
     assert.deepEqual((await state()).quests, [{ userId, questEventName: 'example/win', progressCount: 2 }]);
   });
 });
+
+describe('baziness pay', () => {
+  const paid = (uid: number, sku: string, extra: Record<string, unknown> = {}) =>
+    control<{ token: string }>(hub, 'pay-payment', { uid, sku, ...extra });
+
+  it('finds the paid payment, verifies its token and consumes it once', async () => {
+    const pay = sdk(hub).baziness.pay('com.example.game');
+    assert.equal(await pay.find(7, 'gems_100'), null);
+    const { token } = await paid(7, 'gems_100');
+    const payment = await pay.find(7, 'gems_100');
+    assert.equal(payment?.token, token);
+    assert.equal(payment?.playerId, 7);
+    assert.equal(payment?.amount, 49000);
+    assert.equal(await pay.verify(7, 'gems_100', token), true);
+    assert.equal(await pay.verify(8, 'gems_100', token), false, 'another player');
+    assert.equal(await pay.consume(7, 'gems_100'), true);
+    assert.equal(await pay.consume(7, 'gems_100'), false, 'nothing left to consume');
+    assert.equal(await pay.verify(7, 'gems_100', token), false, 'consumed');
+  });
+
+  it('refuses another token while a payment is paid, though Pay alone would accept it', async () => {
+    const pay = sdk(hub).baziness.pay('com.example.game');
+    await paid(7, 'gems_100');
+    assert.equal(await pay.verify(7, 'gems_100', 'made-up-token'), false);
+    assert.equal(await pay.verify(7, 'gems_100', ''), false);
+  });
+
+  it('lets Pay check the token of a payment the gateway did not report back', async () => {
+    const pay = sdk(hub).baziness.pay('com.example.game');
+    const { token } = await paid(7, 'gems_100', { status: 'ready' });
+    assert.equal(await pay.find(7, 'gems_100'), null);
+    assert.equal(await pay.verify(7, 'gems_100', 'other'), false);
+    assert.equal(await pay.verify(7, 'gems_100', token), true);
+    assert.equal((await pay.find(7, 'gems_100'))?.token, token);
+  });
+
+  it('a consume whose answer was lost still counts as consumed', async () => {
+    const pay = sdk(hub).baziness.pay('com.example.game');
+    await paid(7, 'gems_100');
+    await control(hub, 'drop-after-consume', { times: 1 });
+    assert.equal(await pay.consume(7, 'gems_100'), true);
+    assert.equal((await state()).payments[0]?.status, 'consumed');
+  });
+
+  it('throws for an app Pay does not know, and needs a package name', async () => {
+    const { baziness } = sdk(hub);
+    assert.throws(() => baziness.pay(' '), /packageName/);
+    await assert.rejects(baziness.pay('com.unknown.game').find(7, 'gems_100'), (error: unknown) => {
+      assert.ok(error instanceof BazinessError);
+      assert.equal(error.code, 'no_required_params');
+      return true;
+    });
+  });
+
+  it('uses the environment Pay unless overridden', () => {
+    const production = new BazinessServer({ environment: 'production', clientId: 12, clientSecret: 'x' });
+    assert.equal(production.publicConfig().payUrl, 'https://pay.baziness.com');
+    const own = BazinessServer.fromEnv({
+      BAZINESS_CLIENT_ID: '12',
+      BAZINESS_CLIENT_SECRET: 'x',
+      BAZINESS_PAY_BASE_URL: 'https://pay.example.com/',
+    });
+    assert.equal(own.publicConfig().payUrl, 'https://pay.example.com');
+  });
+});

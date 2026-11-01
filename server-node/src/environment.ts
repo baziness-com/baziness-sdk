@@ -36,3 +36,9 @@ export function resolveApiBase(environment: BazinessEnvironment, override?: stri
   const base = override?.trim() || ENVIRONMENTS[environment].api;
   return base.replace(/\/+$/, '');
 }
+
+/** The Baziness Pay root for an environment, or the override when one is given. */
+export function resolvePayBase(environment: BazinessEnvironment, override?: string): string {
+  const base = override?.trim() || ENVIRONMENTS[environment].pay;
+  return base.replace(/\/+$/, '');
+}

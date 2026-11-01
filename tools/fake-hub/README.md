@@ -9,7 +9,7 @@ integrations from 1.0 (`refresh_token_rotated` within 30 s, `reused` after), one
 on the device path, and players of another game refused one by one.
 
 ```bash
-node fake-hub.mjs 0     # prints "fake-hub listening on <port>"; API under /api
+node fake-hub.mjs 0     # prints "fake-hub listening on <port>"; API under /api, Baziness Pay under /pay
 ```
 
 Synthetic test clients: id `12` / secret `fake-client-secret-12`, id `13` / secret
@@ -25,6 +25,8 @@ Test control (no auth):
 | `POST /__control/link-code` `{ userId }` | a link code, as the Baziness app makes when it opens a game |
 | `POST /__control/phone-login` `{ userId }` | the player signs in with a phone |
 | `POST /__control/suspend` `{ userId }` | the account is blocked |
-| `GET /__control/state` | users, coins, purchases, server and device events, requests |
+| `POST /__control/pay-payment` `{ uid, sku, pname?, status? }` | a Baziness Pay payment: `purchased` (default) or `ready` (the gateway did not report back) |
+| `POST /__control/drop-after-consume` `{ times }` | Pay `consume` calls that consume and then lose their answer |
+| `GET /__control/state` | users, coins, purchases, Pay payments, server and device events, requests |
 
 When the real API changes, change this fake in the same commit as the SDKs.

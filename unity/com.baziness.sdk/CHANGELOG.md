@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 — 2026-11-01
+
+- Baziness Pay, the web checkout: `BazinessSdk.OpenCheckoutAsync(sku, playerId)` opens the checkout page
+  with the player's Baziness token; `BazinessSdk.FindPaymentAsync(sku, playerId)` returns the paid,
+  unconsumed payment (or null) when the player taps your "Complete purchase" button. Send its `Token`
+  to your server (server SDK: `pay.verify`, then `pay.consume`). `BazinessSdk.Pay`, `BazinessUrls.Pay`,
+  options `PayBaseUrlOverride` / `PayPackageName` (settings: `payBaseUrlOverride`).
+
 ## 1.4.0 — 2026-11-01
 
 - `BazinessSdk.GetCampaignAsync()`: the install's campaign (`Campaign`), asked from the device. One that

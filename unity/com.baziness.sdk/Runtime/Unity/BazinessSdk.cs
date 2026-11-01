@@ -26,6 +26,10 @@ namespace Baziness
         public IPageView PageView;
         public string ApiBaseUrlOverride;
         public string PagesBaseUrlOverride;
+        /// <summary>The Baziness Pay address your game already uses, instead of the environment's.</summary>
+        public string PayBaseUrlOverride;
+        /// <summary>Your app in Baziness Pay (Pay's <c>pname</c>). Default: <see cref="PackageName"/>.</summary>
+        public string PayPackageName;
         public IHttp Http;
         public IQueueStorage EventStorage;
 
@@ -39,7 +43,8 @@ namespace Baziness
                 Store = settings.store,
                 PageViewStyle = settings.pageView,
                 ApiBaseUrlOverride = settings.apiBaseUrlOverride,
-                PagesBaseUrlOverride = settings.pagesBaseUrlOverride
+                PagesBaseUrlOverride = settings.pagesBaseUrlOverride,
+                PayBaseUrlOverride = settings.payBaseUrlOverride
             };
         }
     }
@@ -88,6 +93,8 @@ namespace Baziness
         public static ReferralRewards Referrals { get; private set; }
         /// <summary>The player's install campaign, matched by this device's fingerprint while pending (<see cref="GetCampaignAsync"/>).</summary>
         public static InstallCampaign InstallCampaign { get; private set; }
+        /// <summary>Baziness Pay, the web checkout: see <see cref="OpenCheckoutAsync"/> and <see cref="FindPaymentAsync"/>.</summary>
+        public static BazinessPay Pay { get; private set; }
 
         /// <summary>A new session (or null after logout). Your server's extra fields are on <c>Raw</c>.</summary>
         public static event Action<BackendSession> SessionChanged;
@@ -139,6 +146,9 @@ namespace Baziness
             Coins = new CoinBalance(http, apiBase, sessions.Token);
             Referrals = new ReferralRewards(http, apiBase, sessions.Token);
             InstallCampaign = new InstallCampaign(http, apiBase, sessions.Token, Device);
+            var payBase = string.IsNullOrEmpty(options.PayBaseUrlOverride) ? BazinessUrls.Pay(options.Environment) : options.PayBaseUrlOverride;
+            Pay = new BazinessPay(http, payBase,
+                string.IsNullOrEmpty(options.PayPackageName) ? options.PackageName : options.PayPackageName, sessions.Token);
 
             // A launch from the Baziness app or another game: ?linkCode= on the deep link.
             HandleDeepLink(Application.absoluteURL, false);
@@ -206,6 +216,28 @@ namespace Baziness
         {
             RequireInitialized();
             return InstallCampaign.Get();
+        }
+
+        /// <summary>
+        /// Baziness Pay: opens the checkout page of this package in the browser. Show your own "complete the
+        /// purchase" dialog first: the player pays there, comes back and taps it, and you call
+        /// <see cref="FindPaymentAsync"/>. No need to wait for the app to come back to the foreground.
+        /// </summary>
+        /// <param name="playerId">Your player id, the same one your server verifies the payment with.</param>
+        public static async Task OpenCheckoutAsync(string sku, long playerId)
+        {
+            RequireInitialized();
+            Application.OpenURL(await Pay.CheckoutUrl(sku, playerId));
+        }
+
+        /// <summary>
+        /// Baziness Pay: the player's paid, unconsumed payment for this package, or null when not paid yet.
+        /// Send its <c>Token</c> to your server, which verifies it, grants the package and consumes it.
+        /// </summary>
+        public static Task<BazinessPayment> FindPaymentAsync(string sku, long playerId)
+        {
+            RequireInitialized();
+            return Pay.FindPayment(sku, playerId);
         }
 
         /// <summary>

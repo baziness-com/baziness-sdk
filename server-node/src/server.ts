@@ -1,14 +1,15 @@
 import { ServerAnalytics, type AnalyticsOptions } from './analytics.js';
 import { ClientAuth } from './clientAuth.js';
 import { Coins } from './coins.js';
-import { ENVIRONMENTS, isEnvironment, resolveApiBase, type BazinessEnvironment } from './environment.js';
+import { ENVIRONMENTS, isEnvironment, resolveApiBase, resolvePayBase, type BazinessEnvironment } from './environment.js';
 import { silentLogger, Transport, type FetchLike, type HttpOptions, type Logger } from './http.js';
+import { Pay } from './pay.js';
 import { Players } from './players.js';
 import { Purchases } from './purchases.js';
 import type { RefreshTokenStore } from './types.js';
 import type { WireOffer } from './wire.js';
 
-export const SDK_VERSION = '1.4.0';
+export const SDK_VERSION = '1.5.0';
 
 export interface BazinessServerOptions {
   /** `staging` while you integrate and test; `production` after the platform team's review. */
@@ -24,6 +25,8 @@ export interface BazinessServerOptions {
   refreshTokens?: RefreshTokenStore;
   /** Override the API root (a local platform stack, for example). */
   apiBaseUrl?: string;
+  /** Override the Baziness Pay root (a local Pay, or the Pay address your game already uses). */
+  payBaseUrl?: string;
   http?: HttpOptions;
   analytics?: AnalyticsOptions;
   /** Default: silent. Pass `console` or your logger. The SDK never logs secrets or tokens. */
@@ -58,6 +61,8 @@ export class BazinessServer {
   readonly offers: Offers;
 
   private readonly apiBase: string;
+  private readonly payBase: string;
+  private readonly payTransport: Transport;
 
   constructor(options: BazinessServerOptions) {
     if (!isEnvironment(options.environment)) {
@@ -90,15 +95,25 @@ export class BazinessServer {
     this.purchases = new Purchases(transport, this.analytics);
     this.quests = new Quests(transport);
     this.offers = new Offers(transport);
+    this.payBase = resolvePayBase(options.environment, options.payBaseUrl);
+    this.payTransport = new Transport(this.payBase, options.http ?? {}, fetchImpl, logger);
+  }
+
+  /**
+   * Baziness Pay for one of your apps (`packageName`: the app as registered in Pay, Pay's `pname`):
+   * check and consume the payments of its web checkout.
+   */
+  pay(packageName: string): Pay {
+    return new Pay(this.payTransport, packageName);
   }
 
   /**
    * Reads `BAZINESS_ENVIRONMENT` (`staging` | `production`), `BAZINESS_CLIENT_ID`,
-   * `BAZINESS_CLIENT_SECRET` and optionally `BAZINESS_API_BASE_URL`.
+   * `BAZINESS_CLIENT_SECRET` and optionally `BAZINESS_API_BASE_URL` and `BAZINESS_PAY_BASE_URL`.
    */
   static fromEnv(
     env: Record<string, string | undefined>,
-    options: Omit<BazinessServerOptions, 'environment' | 'clientId' | 'clientSecret' | 'apiBaseUrl'> = {},
+    options: Omit<BazinessServerOptions, 'environment' | 'clientId' | 'clientSecret' | 'apiBaseUrl' | 'payBaseUrl'> = {},
   ): BazinessServer {
     const environment = (env.BAZINESS_ENVIRONMENT ?? 'staging').trim();
     if (!isEnvironment(environment)) {
@@ -112,13 +127,15 @@ export class BazinessServer {
     };
     const apiBaseUrl = env.BAZINESS_API_BASE_URL?.trim();
     if (apiBaseUrl) serverOptions.apiBaseUrl = apiBaseUrl;
+    const payBaseUrl = env.BAZINESS_PAY_BASE_URL?.trim();
+    if (payBaseUrl) serverOptions.payBaseUrl = payBaseUrl;
     return new BazinessServer(serverOptions);
   }
 
   /** What the device SDK needs to know about this environment; nothing secret. */
   publicConfig(): PublicConfig {
     const urls = ENVIRONMENTS[this.environment];
-    return { environment: this.environment, apiUrl: this.apiBase, pagesUrl: urls.pages, payUrl: urls.pay };
+    return { environment: this.environment, apiUrl: this.apiBase, pagesUrl: urls.pages, payUrl: this.payBase };
   }
 
   /** Ends open sessions and sends the remaining analytics. Call it on shutdown. */

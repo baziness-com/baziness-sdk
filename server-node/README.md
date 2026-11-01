@@ -51,4 +51,22 @@ link, referrer or APK campaign is `deterministic` and always wins. Once `status`
 `pending` the answer is final. The web and Unity SDKs can also ask from the device itself
 (`campaign.get()`, `BazinessSdk.GetCampaignAsync()`).
 
-`npm test` runs 35 tests against the shared fake platform in `../tools/fake-hub`.
+## Baziness Pay
+
+Baziness Pay is the web checkout (`pay.baziness.com`) for packages registered in Pay under your app's
+package name. The device opens the checkout and, when the player taps "Complete purchase", finds the
+paid payment and sends its token to your server:
+
+```ts
+const pay = baziness.pay('com.example.game');       // your app in Baziness Pay (Pay's pname)
+if (await pay.verify(playerId, sku, token)) {        // your player id; the token must be this payment's
+  await grantOnce(playerId, sku, token);             // your own grant, once per token
+  await pay.consume(playerId, sku);                  // the player can buy it again
+}
+const payment = await pay.find(playerId, sku);       // or null: complete it without a device token
+```
+
+Pay reports these payments to Baziness itself: never `purchases.record` them. `BAZINESS_PAY_BASE_URL`
+(or `payBaseUrl`) overrides the environment's Pay address.
+
+`npm test` runs 41 tests against the shared fake platform in `../tools/fake-hub`.

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // An in-memory stand-in for the Baziness platform API, implementing the contract the SDKs are
 // written against (client auth, v2 users with access tokens alone or with refresh-token rotation,
-// link codes, coins, purchases, analytics). Every SDK's tests run against it, so they all agree on
-// one behaviour.
+// link codes, coins, purchases, analytics) and Baziness Pay's game-facing calls (under /pay). Every
+// SDK's tests run against it, so they all agree on one behaviour.
 //
 //   node fake-hub.mjs [port]          → prints "fake-hub listening on <port>"
 //
@@ -11,7 +11,8 @@
 // POST /__control/offer {playerId, bundleId}, POST /__control/referral-rewards {userId, count},
 // POST /__control/client-wallet {clientId, balance}, POST /__control/drop-after-credit {times},
 // POST /__control/click {linkCode, clickId?, utmSource?, utmMedium?, utmCampaign?, ip?} (a campaign
-// link click for fingerprint attribution), GET /__control/state.
+// link click for fingerprint attribution), POST /__control/pay-payment {uid, sku, pname?, status?},
+// POST /__control/drop-after-consume {times}, GET /__control/state.
 
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
@@ -27,6 +28,8 @@ const REFRESH_TOKEN_MS = 30 * 86_400_000;
 const ROTATION_GRACE_MS = 30_000;
 const SERVER_ONLY = new Set(['session_start', 'session_heartbeat', 'session_end', 'device_info', 'iap_purchase_completed', 'auth_login']);
 const EVENT_NAME = /^[a-z0-9_:.-]{1,128}$/;
+// Apps registered in the fake Baziness Pay (its `pname`); any other answers `no_required_params`, like Pay.
+const PAY_APPS = new Set(['com.example.game']);
 
 function freshState() {
   return {
@@ -51,6 +54,8 @@ function freshState() {
     referralRewards: new Map(), // userId → collectable referral rewards
     clicks: [], // campaign link clicks: { clickId, linkCode, utmSource, utmMedium, utmCampaign, ip, takenBy }
     fingerprints: [], // { userId, via, ip, userAgent, deviceModel, osVersion } each campaign lookup saw
+    payments: [], // Baziness Pay: { pname, uid, sku, token, status: ready|purchased|consumed, amount, transactionId }
+    dropAfterConsume: 0, // pay consume calls that consume and then lose their answer
     failures: [], // { path, status, times, error }
     requests: [], // { method, path }
   };
@@ -302,6 +307,24 @@ async function handle(req, res) {
     state.dropAfterCredit = body.times ?? 1;
     return sendJson(res, 200, { ok: true });
   }
+  if (path === '/__control/pay-payment') {
+    // A player paid on the checkout page (status `purchased`), or left it at the gateway (`ready`).
+    const payment = {
+      pname: body.pname ?? 'com.example.game',
+      uid: Number(body.uid),
+      sku: body.sku,
+      token: body.token ?? token('A'),
+      status: body.status ?? 'purchased',
+      amount: body.amount ?? 49000,
+      transactionId: token('tx'),
+    };
+    state.payments.push(payment);
+    return sendJson(res, 200, payment);
+  }
+  if (path === '/__control/drop-after-consume') {
+    state.dropAfterConsume = body.times ?? 1;
+    return sendJson(res, 200, { ok: true });
+  }
   if (path === '/__control/offer') {
     state.offers.set(body.playerId, body.bundleId);
     return sendJson(res, 200, { ok: true });
@@ -328,6 +351,7 @@ async function handle(req, res) {
       serverEvents: state.serverEvents,
       deviceEvents: state.deviceEvents,
       quests: state.quests,
+      payments: state.payments,
       coins: Object.fromEntries(state.coins),
       requests: state.requests,
       liveSessions: [...state.sessions.values()].filter((s) => !s.revoked).length,
@@ -340,6 +364,9 @@ async function handle(req, res) {
     failure.times--;
     return failure.status === 0 ? req.socket.destroy() : fail(res, failure.status, failure.error ?? 'injected');
   }
+
+  // ── Baziness Pay (its own server; no auth, answers 200 with success false like Pay) ──
+  if (path.startsWith('/pay/') && req.method === 'POST') return pay(path.slice('/pay'.length), body, req, res);
 
   // ── unauthenticated ──
   if (path === '/api/client/auth' && req.method === 'POST') {
@@ -526,6 +553,49 @@ async function handle(req, res) {
   return fail(res, 404, 'not found');
 }
 
+function pay(path, body, req, res) {
+  const uid = Number.parseInt(body.uid, 10);
+  if (!uid || !body.sku || !PAY_APPS.has(body.pname)) return fail(res, 200, 'no_required_params');
+  const find = (status) => state.payments.find((p) => p.pname === body.pname && p.uid === uid && p.sku === body.sku && p.status === status);
+  const purchased = find('purchased');
+  if (path === '/get_payment') {
+    if (!purchased) return fail(res, 200, 'payment_is_not_valid');
+    return sendJson(res, 200, {
+      uid: purchased.uid,
+      sku: purchased.sku,
+      token: purchased.token,
+      transactionId: purchased.transactionId,
+      amount: purchased.amount,
+      packageTitle: `Package ${purchased.sku}`,
+      gateway: 'zarinpal',
+      submittedAt: new Date().toISOString(),
+      time: Date.now(),
+      success: true,
+    });
+  }
+  if (path === '/verify_payment') {
+    // Like Pay: a purchased payment is accepted whatever the token; a payment the gateway did not report
+    // back is checked by its token (Pay asks the gateway) and becomes purchased.
+    if (purchased) return sendJson(res, 200, { success: true });
+    const ready = find('ready');
+    if (ready && body.token && ready.token === body.token) {
+      ready.status = 'purchased';
+      return sendJson(res, 200, { success: true });
+    }
+    return fail(res, 200, 'payment_is_not_valid');
+  }
+  if (path === '/consume') {
+    if (!purchased) return fail(res, 200, 'payment_is_not_valid');
+    purchased.status = 'consumed';
+    if (state.dropAfterConsume > 0) {
+      state.dropAfterConsume--;
+      return req.socket.destroy();
+    }
+    return sendJson(res, 200, { success: true });
+  }
+  return fail(res, 404, 'not found');
+}
+
 export function startFakeHub(port = 0) {
   state = freshState();
   const server = createServer((req, res) => {
@@ -540,6 +610,7 @@ export function startFakeHub(port = 0) {
       resolve({
         port: actual,
         apiBase: `http://127.0.0.1:${actual}/api`,
+        payBase: `http://127.0.0.1:${actual}/pay`,
         close: () => new Promise((done) => server.close(() => done())),
       });
     });

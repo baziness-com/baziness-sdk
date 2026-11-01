@@ -30,5 +30,7 @@ namespace Baziness
         [Tooltip("Optional overrides, e.g. a local platform stack.")]
         public string apiBaseUrlOverride;
         public string pagesBaseUrlOverride;
+        [Tooltip("Optional: the Baziness Pay address your game already uses.")]
+        public string payBaseUrlOverride;
     }
 }

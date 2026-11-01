@@ -12,7 +12,7 @@ import java.util.Map;
  * </pre>
  */
 public final class BazinessServer {
-    public static final String SDK_VERSION = "1.4.0";
+    public static final String SDK_VERSION = "1.5.0";
 
     private final Environment environment;
     private final String apiBase;
@@ -22,6 +22,8 @@ public final class BazinessServer {
     private final ServerAnalytics analytics;
     private final Quests quests;
     private final Offers offers;
+    private final String payBase;
+    private final Transport payTransport;
 
     private BazinessServer(Builder builder) {
         this.environment = builder.environment;
@@ -39,6 +41,10 @@ public final class BazinessServer {
         this.purchases = new Purchases(transport, analytics);
         this.quests = new Quests(transport);
         this.offers = new Offers(transport);
+        String pay = builder.payBaseUrl != null && !builder.payBaseUrl.trim().isEmpty()
+                ? builder.payBaseUrl.trim() : builder.environment.payUrl();
+        this.payBase = pay.replaceAll("/+$", "");
+        this.payTransport = new Transport(payBase, builder.http, builder.logger);
     }
 
     public static Builder builder(Environment environment, long clientId, String clientSecret) {
@@ -48,7 +54,7 @@ public final class BazinessServer {
     /**
      * Reads {@code BAZINESS_ENVIRONMENT} ({@code staging} | {@code production}),
      * {@code BAZINESS_CLIENT_ID}, {@code BAZINESS_CLIENT_SECRET} and optionally
-     * {@code BAZINESS_API_BASE_URL}, e.g. from {@code System.getenv()}.
+     * {@code BAZINESS_API_BASE_URL} and {@code BAZINESS_PAY_BASE_URL}, e.g. from {@code System.getenv()}.
      */
     public static Builder fromEnv(Map<String, String> env) {
         String environment = env.get("BAZINESS_ENVIRONMENT");
@@ -62,6 +68,7 @@ public final class BazinessServer {
         Builder builder = new Builder(Environment.parse(environment == null ? "staging" : environment), id,
                 env.get("BAZINESS_CLIENT_SECRET"));
         builder.apiBaseUrl = env.get("BAZINESS_API_BASE_URL");
+        builder.payBaseUrl = env.get("BAZINESS_PAY_BASE_URL");
         return builder;
     }
 
@@ -97,6 +104,19 @@ public final class BazinessServer {
         return offers;
     }
 
+    /** The Baziness Pay root this server checks payments with. */
+    public String payBase() {
+        return payBase;
+    }
+
+    /**
+     * Baziness Pay for one of your apps ({@code packageName}: the app as registered in Pay, Pay's
+     * {@code pname}): check and consume the payments of its web checkout.
+     */
+    public Pay pay(String packageName) {
+        return new Pay(payTransport, packageName);
+    }
+
     /** Ends open sessions and sends the remaining analytics. Call it on shutdown. */
     public void close() {
         analytics.close(5000);
@@ -108,6 +128,7 @@ public final class BazinessServer {
         private final String clientSecret;
         private RefreshTokenStore refreshTokens;
         private String apiBaseUrl;
+        private String payBaseUrl;
         private HttpOptions http = new HttpOptions();
         private AnalyticsOptions analytics = new AnalyticsOptions();
         private BazinessLogger logger = BazinessLogger.JUL;
@@ -139,6 +160,12 @@ public final class BazinessServer {
         /** Override the API root (a local platform stack, for example). */
         public Builder apiBaseUrl(String apiBaseUrl) {
             this.apiBaseUrl = apiBaseUrl;
+            return this;
+        }
+
+        /** Override the Baziness Pay root (a local Pay, or the Pay address your game already uses). */
+        public Builder payBaseUrl(String payBaseUrl) {
+            this.payBaseUrl = payBaseUrl;
             return this;
         }
 

@@ -39,6 +39,26 @@ reduced User-Agent hides them) to the campaign link click it most likely followe
 `start()` sends that model and OS version to your server too (`SessionRequest.device`), so your
 server can ask with `players.campaign` instead.
 
+## Baziness Pay
+
+Packages registered in Baziness Pay are paid on its web checkout. In the player's tap, show your
+"complete the purchase" dialog and open the checkout; when they tap "Complete purchase", find the paid
+payment and send its token to your server (server SDK: `pay.verify`, then `pay.consume`):
+
+```ts
+buyButton.onclick = () => {
+  showCompletePurchaseDialog();
+  void baziness.pay.openCheckout(sku, playerId);  // in the tap: browsers block a later new tab
+};
+completeButton.onclick = async () => {
+  const payment = await baziness.pay.findPayment(sku, playerId);
+  if (payment) await myServer.completePurchase(sku, payment.token);
+  else showNotPaidYet();                          // keep the dialog: they can tap again
+};
+```
+
+`payBaseUrl` and `payPackageName` (default: `packageName`) override the Pay address and app name.
+
 Without a bundler: `<script src="baziness.global.js"></script>` → `window.Baziness.BazinessWeb`.
 
-`npm test` (12 tests against `../tools/fake-hub`), `npm run build` (ESM in `dist/`, 21 KB minified global build).
+`npm test` (13 tests against `../tools/fake-hub`), `npm run build` (ESM in `dist/`, 23 KB minified global build).

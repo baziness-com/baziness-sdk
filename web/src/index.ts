@@ -9,6 +9,8 @@ export type { AdPlacement, DeviceAnalyticsOptions, PropValue, PurchaseGateway } 
 export { InstallCampaign } from './campaign.js';
 export type { Campaign } from './campaign.js';
 export { CoinBalance, ReferralRewards } from './coins.js';
+export { BazinessPay } from './pay.js';
+export type { BazinessPayment } from './pay.js';
 export { SDK_VERSION, collectDevice, refineDevice } from './device.js';
 export type { DeviceInfo } from './device.js';
 export { readLaunch } from './launch.js';

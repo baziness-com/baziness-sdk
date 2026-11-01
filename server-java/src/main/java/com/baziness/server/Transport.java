@@ -33,6 +33,8 @@ final class Transport {
         final boolean clientAuth;
         final boolean idempotent;
         boolean expectJson = true;
+        /** Stream the body (see {@link #once}); client-token calls always are. */
+        boolean streamed;
         /** Set when an attempt's outcome was unknown (timeout, 500, 504) and the call was sent again. */
         boolean resentAfterUnknownOutcome;
 
@@ -47,6 +49,11 @@ final class Transport {
 
         Call noJson() {
             expectJson = false;
+            return this;
+        }
+
+        Call streamed() {
+            streamed = true;
             return this;
         }
     }
@@ -207,7 +214,7 @@ final class Transport {
                 // the connection drops before the answer, unseen by the retries here (a second user,
                 // a payout reported as refused). Their 401 needs no body: it only means sign in again.
                 // The refresh-token calls stay buffered for their 401 codes (refresh_token_rotated, …).
-                if (call.clientAuth) {
+                if (call.clientAuth || call.streamed) {
                     connection.setFixedLengthStreamingMode(payload.length);
                 }
                 OutputStream out = connection.getOutputStream();

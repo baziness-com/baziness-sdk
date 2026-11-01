@@ -5,12 +5,12 @@ Yatzy's, and any other JVM server. Same API and behaviour as `@baziness/server`.
 
 ## Install
 
-Download `baziness-sdk-java-1.4.0.jar` from the
-[v1.4.0 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.4.0) and add
+Download `baziness-sdk-java-1.5.0.jar` from the
+[v1.5.0 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.5.0) and add
 it to your server's classpath. The JAR has no runtime dependencies and targets Java 8.
 
 ```bash
-javac -cp baziness-sdk-java-1.4.0.jar YourGameServer.java
+javac -cp baziness-sdk-java-1.5.0.jar YourGameServer.java
 ```
 
 ## Quick start
@@ -48,6 +48,24 @@ referrer or APK campaign is `deterministic` and always wins; once the campaign i
 
 Calls block: make them from a worker thread, never from SmartFox's I/O threads.
 
+## Baziness Pay
+
+Baziness Pay is the web checkout (`pay.baziness.com`) for packages registered in Pay under your app's
+package name. The device opens the checkout and, when the player taps "Complete purchase", finds the
+paid payment and sends its token to your server:
+
+```java
+Pay pay = baziness.pay("com.example.game");          // your app in Baziness Pay (Pay's pname)
+if (pay.verify(playerId, sku, token)) {              // your player id; the token must be this payment's
+    grantOnce(playerId, sku, token);                 // your own grant, once per token
+    pay.consume(playerId, sku);                      // the player can buy it again
+}
+Pay.Payment payment = pay.find(playerId, sku);       // or null: complete it without a device token
+```
+
+Pay reports these payments to Baziness itself: never `purchases().record` them.
+`BAZINESS_PAY_BASE_URL` (or `Builder.payBaseUrl`) overrides the environment's Pay address.
+
 ```bash
-./build.sh           # javac --release 8 → out/baziness-server-1.4.0.jar, then 15 tests (needs Node for the fake platform)
+./build.sh           # javac --release 8 → out/baziness-server-1.5.0.jar, then 17 tests (needs Node for the fake platform)
 ```

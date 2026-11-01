@@ -6,6 +6,25 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-01
+
+- **Baziness Pay** in every SDK, for packages registered in Pay (the web checkout, `pay.baziness.com`).
+  The device no longer waits for the game to come back to the foreground: the game shows a "complete
+  the purchase" dialog, opens the checkout, and finds the payment when the player taps it.
+  - Unity: `BazinessSdk.OpenCheckoutAsync(sku, playerId)` opens the checkout in the browser with the
+    player's Baziness token (`bztoken`, so the payment counts for the player's account);
+    `BazinessSdk.FindPaymentAsync(sku, playerId)` returns the paid, unconsumed payment or null.
+    `BazinessSdk.Pay` (`BazinessPay`, engine-free core), `BazinessUrls.Pay`, and
+    `BazinessOptions.PayBaseUrlOverride` / `PayPackageName` (settings: `payBaseUrlOverride`).
+  - Web: `baziness.pay.openCheckout` (opens the tab in the tap, then navigates), `checkoutUrl`,
+    `findPayment`; options `payBaseUrl`, `payPackageName`.
+  - Server SDKs: `pay(packageName)` with `find`, `verify` and `consume`. `verify` accepts only the token of
+    the paid payment (Pay alone accepts any token while one is paid) and, when none is paid yet, lets
+    Pay check the token with the bank. A `consume` whose answer was lost counts as consumed. Options
+    `payBaseUrl` / `BAZINESS_PAY_BASE_URL`; Node's `publicConfig().payUrl` follows the override.
+- Java: Pay calls are streamed like client-token calls, so the JDK cannot resend one unseen.
+- Fake hub: a Baziness Pay under `/pay` (`/__control/pay-payment`, `/__control/drop-after-consume`).
+
 ## [1.4.0] - 2026-11-01
 
 Install campaigns, with fingerprint attribution. An install that came with no campaign (no campaign

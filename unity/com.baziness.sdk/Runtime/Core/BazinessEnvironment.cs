@@ -27,5 +27,13 @@ namespace Baziness
                 ? "https://baziness.com"
                 : "https://platform-web-dev.karizmastudios.org";
         }
+
+        /// <summary>Baziness Pay, the web checkout.</summary>
+        public static string Pay(BazinessEnvironment environment)
+        {
+            return environment == BazinessEnvironment.Production
+                ? "https://pay.baziness.com"
+                : "https://pay-dev.karizmastudios.org";
+        }
     }
 }

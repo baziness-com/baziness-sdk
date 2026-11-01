@@ -5,6 +5,7 @@ import { BazinessServer, MemoryRefreshTokenStore, type BazinessServerOptions } f
 export interface FakeHub {
   port: number;
   apiBase: string;
+  payBase: string;
   close(): Promise<void>;
 }
 
@@ -33,6 +34,7 @@ export interface HubState {
   serverEvents: Array<{ eventId: string; eventKey: string; userId: number; sessionId?: string; value?: number; props?: Record<string, string> }>;
   deviceEvents: unknown[];
   quests: unknown[];
+  payments: Array<{ pname: string; uid: number; sku: string; token: string; status: string }>;
   coins: Record<string, number>;
   requests: Array<{ method: string; path: string }>;
   liveSessions: number;
@@ -45,6 +47,7 @@ export function sdk(hub: FakeHub, overrides: Partial<BazinessServerOptions> = {}
     environment: 'staging',
     ...fake.FAKE_CLIENT,
     apiBaseUrl: hub.apiBase,
+    payBaseUrl: hub.payBase,
     http: { retryBaseMs: 10, deadlineMs: 5000 },
     analytics: { flushIntervalMs: 60_000 },
     ...overrides,
