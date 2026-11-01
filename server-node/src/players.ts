@@ -3,6 +3,8 @@ import { BazinessError, ErrorCodes } from './errors.js';
 import type { Logger, Transport } from './http.js';
 import type {
   Attribution,
+  Campaign,
+  DeviceFingerprint,
   Platform,
   PlayerSession,
   RefreshTokenStore,
@@ -14,6 +16,7 @@ import type {
   WireAccessTokenSession,
   WireAccountData,
   WireAttribution,
+  WireCampaign,
   WireLinkCode,
   WirePhoneDetail,
   WireRefreshResponse,
@@ -197,6 +200,27 @@ export class Players {
     return answer.isRegistered && answer.userId ? answer.userId : null;
   }
 
+  /**
+   * Your player's install campaign. Pass the device as your server saw it (`ip` and `userAgent` of
+   * the player's request, `deviceModel` and `osVersion` from the device SDK): while the install is
+   * still pending (24 h after its first open, when it came with no campaign) Baziness first matches
+   * it by that fingerprint to the campaign link click it most likely followed
+   * (`matchType: 'probabilistic'`). Ask when the player opens the game; the answer is final once
+   * `status` is no longer `pending`.
+   */
+  async campaign(userId: number, device?: DeviceFingerprint): Promise<Campaign> {
+    const answer = await this.transport.request<WireCampaign>({
+      operation: 'campaign',
+      method: 'POST',
+      path: `/v2/client/attribution/${userId}`,
+      body: device ? fingerprintBody(device) : {},
+      auth: 'client',
+      // Asking again answers the same: a click wins one install, and the first answer is final.
+      idempotent: true,
+    });
+    return fromWireCampaign(answer);
+  }
+
   /** The player's Baziness account (phone, name), or null when they have not signed in. */
   async accountData(userId: number): Promise<AccountData | null> {
     const answer = await this.transport.request<WireAccountData | null>({
@@ -361,6 +385,36 @@ function fromUserSession(answer: WireUserSession): SessionWithRefreshToken {
     accessTokenExpiresAt: answer.tokens.accessTokenExpiresAt,
     refreshToken: answer.tokens.refreshToken,
     refreshTokenExpiresAt: answer.tokens.refreshTokenExpiresAt,
+  };
+}
+
+function fingerprintBody(device: DeviceFingerprint): Record<string, string> {
+  const entries = Object.entries({
+    ip: device.ip?.trim(),
+    userAgent: device.userAgent,
+    deviceModel: device.deviceModel?.trim(),
+    osVersion: device.osVersion?.trim(),
+  }).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1] !== '');
+  return Object.fromEntries(entries);
+}
+
+function fromWireCampaign(answer: WireCampaign): Campaign {
+  const date = (value: string | null | undefined) => (value ? new Date(value) : null);
+  return {
+    found: answer.found === true,
+    status: (answer.status ?? '') as Campaign['status'],
+    matchType: (answer.matchType ?? '') as Campaign['matchType'],
+    channel: answer.channel ?? '',
+    utmSource: answer.utmSource ?? '',
+    utmMedium: answer.utmMedium ?? '',
+    utmCampaign: answer.utmCampaign ?? '',
+    utmContent: answer.utmContent ?? '',
+    utmTerm: answer.utmTerm ?? '',
+    campaignCode: answer.linkCode ?? '',
+    clickId: answer.clickId ?? '',
+    installStore: answer.installStore ?? '',
+    firstSeen: date(answer.firstSeen),
+    attributedAt: date(answer.attributedAt),
   };
 }
 

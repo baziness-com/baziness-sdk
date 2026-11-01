@@ -58,6 +58,45 @@ export interface DeviceInfo {
   network?: string;
 }
 
+/**
+ * The player's device as your server saw it, for fingerprint attribution: the IP and User-Agent of
+ * the player's request (behind a proxy: the forwarded client IP), plus the model and OS version the
+ * device SDK reports (`DeviceInfo.model`, `DeviceInfo.osVersion`). Without an IP, nothing is matched.
+ */
+export interface DeviceFingerprint {
+  ip?: string;
+  userAgent?: string;
+  deviceModel?: string;
+  osVersion?: string;
+}
+
+/**
+ * The install's campaign as Baziness knows it. An install that came with no campaign (no campaign
+ * link, UTMs, store referrer or APK campaign) is `pending` for 24 hours after its first open; asking
+ * with the device's fingerprint during that time matches it to the campaign link click it most
+ * likely followed (`matchType: 'probabilistic'`). After that it is `organic`.
+ */
+export interface Campaign {
+  /** False: Baziness has nothing for this player yet (just created; ask again shortly). */
+  found: boolean;
+  status: 'pending' | 'attributed' | 'organic' | 'legacy' | '';
+  /** `deterministic`: link, store referrer or APK campaign. `probabilistic`: matched by fingerprint. */
+  matchType: 'deterministic' | 'probabilistic' | 'none' | '';
+  channel: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string;
+  utmTerm: string;
+  /** Campaign link code (`bz_lc`). */
+  campaignCode: string;
+  clickId: string;
+  /** `googleplay`, `cafebazaar`, `myket`, `direct` or empty. */
+  installStore: string;
+  firstSeen: Date | null;
+  attributedAt: Date | null;
+}
+
 /** A player's Baziness session as your game server hands it to the player's device. */
 export interface PlayerSession {
   /** The Baziness user id of this player (one per game install, joined into a person by Baziness). */

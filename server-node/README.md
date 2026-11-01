@@ -31,4 +31,24 @@ const bundleId = await baziness.offers.get(playerId);                    // your
 await baziness.close();                                                   // on shutdown
 ```
 
-`npm test` runs 33 tests against the shared fake platform in `../tools/fake-hub`.
+## The player's install campaign
+
+```ts
+// When the player opens the game: the device as your server saw it.
+const campaign = await baziness.players.campaign(userId, {
+  ip: req.ip,                         // the player's IP (with a proxy in front: the forwarded one)
+  userAgent: req.get('user-agent'),
+  deviceModel: device.model,          // from the device SDK's DeviceInfo
+  osVersion: device.osVersion,
+});
+// { status: 'attributed', matchType: 'probabilistic', utmSource: 'instagram', campaignCode: 'autumn', … }
+```
+
+An install that came with no campaign (no campaign link, UTMs, store referrer or APK campaign) is
+`pending` for 24 hours after its first open. Asking with the device's fingerprint during that time
+matches it to the campaign link click it most likely followed: `matchType: 'probabilistic'`. A
+link, referrer or APK campaign is `deterministic` and always wins. Once `status` is no longer
+`pending` the answer is final. The web and Unity SDKs can also ask from the device itself
+(`campaign.get()`, `BazinessSdk.GetCampaignAsync()`).
+
+`npm test` runs 35 tests against the shared fake platform in `../tools/fake-hub`.

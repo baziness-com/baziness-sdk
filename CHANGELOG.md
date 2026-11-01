@@ -6,6 +6,29 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-01
+
+Install campaigns, with fingerprint attribution. An install that came with no campaign (no campaign
+link, UTMs, store referrer or APK campaign) is `pending` for 24 hours after its first open; asking
+for its campaign during that time lets Baziness match it by the device's fingerprint (IP and
+User-Agent, plus model and OS version) to the campaign link click it most likely followed. Such a
+campaign has `matchType: 'probabilistic'`; a link, referrer or APK campaign is `deterministic` and
+always wins. Once the campaign is no longer pending, the answer is final.
+
+- Server SDKs (Node, Java): `players.campaign(userId, device)` with the device as your server saw it
+  (`DeviceFingerprint`: `ip`, `userAgent`, `deviceModel`, `osVersion`); `POST v2/client/attribution/{id}`.
+  403 for another game's player.
+- Web: `campaign.get()` asks from the device itself (`POST analytics/attribution/resolve` with the
+  player's token). `start()` first reads the device's real model and Android version from Chrome's
+  client hints (`refineDevice`), so they also reach your server in `SessionRequest.device`; the
+  reduced User-Agent's frozen "Android 10" is no longer reported as the OS version.
+- Unity: `BazinessSdk.GetCampaignAsync()` (`InstallCampaign`, `Campaign`), asked from the device; a late
+  `SetInstallReferrer` / `SetCampaignAttribution` report carries the device model and OS version, so
+  one without a campaign can still be matched.
+- Fake hub: `POST /__control/click` registers a campaign link click; the two campaign routes match
+  an install with no campaign to the latest click from its IP; `state.fingerprints` lists what each
+  lookup saw.
+
 ## [1.3.0] - 2026-10-31
 
 - Unity: the page view appears **the moment a page is asked for**. `BazinessWebView` slides up with its

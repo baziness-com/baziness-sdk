@@ -23,6 +23,8 @@ export type { AdPlacement, AnalyticsOptions, FunnelGateway, PropValue, SessionSt
 export { MemoryRefreshTokenStore } from './types.js';
 export type {
   Attribution,
+  Campaign,
+  DeviceFingerprint,
   DeviceInfo,
   PaymentGateway,
   Platform,

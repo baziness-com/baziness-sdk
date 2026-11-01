@@ -10,7 +10,8 @@
 // POST /__control/expire-client-tokens, POST /__control/link-code {userId, targetClientId?},
 // POST /__control/offer {playerId, bundleId}, POST /__control/referral-rewards {userId, count},
 // POST /__control/client-wallet {clientId, balance}, POST /__control/drop-after-credit {times},
-// GET /__control/state.
+// POST /__control/click {linkCode, clickId?, utmSource?, utmMedium?, utmCampaign?, ip?} (a campaign
+// link click for fingerprint attribution), GET /__control/state.
 
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
@@ -48,6 +49,8 @@ function freshState() {
     quests: [],
     offers: new Map(), // the game's own player id → bundle id
     referralRewards: new Map(), // userId → collectable referral rewards
+    clicks: [], // campaign link clicks: { clickId, linkCode, utmSource, utmMedium, utmCampaign, ip, takenBy }
+    fingerprints: [], // { userId, via, ip, userAgent, deviceModel, osVersion } each campaign lookup saw
     failures: [], // { path, status, times, error }
     requests: [], // { method, path }
   };
@@ -101,6 +104,46 @@ function accessOnlySession(user) {
 }
 
 const isLinked = (user) => user.accountId !== null && state.accounts.get(user.accountId)?.phone != null;
+
+// ── install campaigns, as the platform's analytics answers them ──
+// Simplified fingerprint: an Android or iOS install that came with no campaign takes the latest
+// untaken click from the same IP (the platform also checks time, platform, model and OS version).
+
+const hasCampaign = (a) => Boolean(a && (a.utmSource || a.linkCode || a.clickId || /utm_|bz_lc|lc=/.test(a.referrer ?? '')));
+const sameIp = (ip) => (ip ?? '').replace(/^::ffff:/, '').replace(/^::1$/, '127.0.0.1');
+
+function matchFingerprint(user, device, via) {
+  state.fingerprints.push({ userId: user.userId, via, ...device });
+  if (hasCampaign(user.attribution) || user.campaignClick || !/^(android|ios)$/i.test(user.platform ?? '')) return;
+  const click = state.clicks.filter((c) => !c.takenBy && sameIp(c.ip) === sameIp(device.ip)).at(-1);
+  if (!click) return;
+  click.takenBy = user.userId;
+  user.campaignClick = click;
+}
+
+function campaignOf(user) {
+  const now = new Date().toISOString();
+  const empty = { utmSource: '', utmMedium: '', utmCampaign: '', utmContent: '', utmTerm: '', linkCode: '', clickId: '' };
+  const view = (status, matchType, fields) => ({
+    found: true, status, matchType, channel: fields.utmSource || status, ...empty, ...fields,
+    installStore: (user.store ?? '').toLowerCase(), firstSeen: user.createdAt ?? now,
+    attributedAt: status === 'attributed' ? now : null,
+  });
+  if (hasCampaign(user.attribution)) {
+    const a = user.attribution;
+    return view('attributed', 'deterministic', {
+      utmSource: a.utmSource ?? '', utmMedium: a.utmMedium ?? '', utmCampaign: a.utmCampaign ?? '',
+      utmContent: a.utmContent ?? '', utmTerm: a.utmTerm ?? '', linkCode: a.linkCode ?? '', clickId: a.clickId ?? '',
+    });
+  }
+  const c = user.campaignClick;
+  if (c) {
+    return view('attributed', 'probabilistic', {
+      utmSource: c.utmSource ?? '', utmMedium: c.utmMedium ?? '', utmCampaign: c.utmCampaign ?? '', linkCode: c.linkCode, clickId: c.clickId,
+    });
+  }
+  return view(/^(android|ios)$/i.test(user.platform ?? '') ? 'pending' : 'organic', 'none', {});
+}
 
 function accountOf(userId) {
   return state.users.get(userId)?.accountId ?? null;
@@ -174,6 +217,7 @@ function createUser(clientId, body) {
     store: body.store,
     accountId,
     attribution: body.attribution ?? null,
+    createdAt: new Date().toISOString(),
   };
   state.users.set(user.userId, user);
   return { user };
@@ -270,8 +314,15 @@ async function handle(req, res) {
     state.users.get(body.userId).suspended = true;
     return sendJson(res, 200, { ok: true });
   }
+  if (path === '/__control/click') {
+    const click = { clickId: body.clickId ?? token('click'), linkCode: body.linkCode ?? 'test-link', utmSource: body.utmSource ?? '',
+      utmMedium: body.utmMedium ?? '', utmCampaign: body.utmCampaign ?? '', ip: body.ip ?? '127.0.0.1', takenBy: null };
+    state.clicks.push(click);
+    return sendJson(res, 200, { clickId: click.clickId });
+  }
   if (path === '/__control/state') {
     return sendJson(res, 200, {
+      fingerprints: state.fingerprints,
       users: [...state.users.values()],
       purchases: state.purchases,
       serverEvents: state.serverEvents,
@@ -342,6 +393,14 @@ async function handle(req, res) {
     user.attribution = body;
     return sendJson(res, 200, { outcome: 'applied' });
   }
+  if (path === '/api/analytics/attribution/resolve' && req.method === 'POST') {
+    // The player's own device: its request's IP and User-Agent, plus what the app adds.
+    const user = userOfToken(bearer(req) ?? '');
+    if (!user) return fail(res, 401, 'unauthorized');
+    matchFingerprint(user, { ip: req.socket.remoteAddress, userAgent: req.headers['user-agent'] ?? '',
+      deviceModel: body.deviceModel ?? '', osVersion: body.osVersion ?? '' }, 'device');
+    return sendJson(res, 200, campaignOf(user));
+  }
 
   // ── client token ──
   const clientId = clientOf(req);
@@ -357,7 +416,18 @@ async function handle(req, res) {
     if (result.error) return fail(res, 400, result.error);
     return sendJson(res, 200, body.accessTokenOnly ? accessOnlySession(result.user) : userSession(result.user));
   }
-  let match = path.match(/^\/api\/v2\/client\/access-token\/(\d+)$/);
+  let match = path.match(/^\/api\/v2\/client\/attribution\/(\d+)$/);
+  if (match && req.method === 'POST') {
+    // A game server, passing on the device it saw.
+    const user = state.users.get(Number(match[1]));
+    if (!user || user.clientId !== clientId) return fail(res, 403, `user ${match[1]} does not belong to this client`);
+    if (body.ip) {
+      matchFingerprint(user, { ip: body.ip, userAgent: body.userAgent ?? '', deviceModel: body.deviceModel ?? '',
+        osVersion: body.osVersion ?? '' }, 'server');
+    }
+    return sendJson(res, 200, campaignOf(user));
+  }
+  match = path.match(/^\/api\/v2\/client\/access-token\/(\d+)$/);
   if (match && req.method === 'POST') {
     const user = ownUser(match[1]);
     if (!user) return fail(res, 403, 'access denied');

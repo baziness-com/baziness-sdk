@@ -75,6 +75,23 @@ export interface WireAccountData {
 }
 
 /** First-touch attribution as `create-user` and `analytics/attribution` take it. */
+export interface WireCampaign {
+  found: boolean;
+  status?: string;
+  matchType?: string;
+  channel?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  linkCode?: string;
+  clickId?: string;
+  installStore?: string;
+  firstSeen?: string | null;
+  attributedAt?: string | null;
+}
+
 export interface WireAttribution {
   utmSource?: string;
   utmMedium?: string;

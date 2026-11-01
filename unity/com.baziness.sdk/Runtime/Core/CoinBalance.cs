@@ -67,5 +67,21 @@ namespace Baziness
             }
             throw new BackendException(operation + ": unauthorized", 401);
         }
+
+        /// <summary>A JSON POST with the player's token, asking your server for a new token once on 401.</summary>
+        public static async Task<string> Post(IHttp http, string url, string json, Func<bool, Task<string>> token, string operation)
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var result = await http.Send("POST", url, json, new Dictionary<string, string>
+                {
+                    ["Content-Type"] = "application/json", ["Authorization"] = "Bearer " + await token(attempt > 0)
+                });
+                if (result.Status == 401 && attempt == 0) continue;
+                if (!result.Ok) throw new BackendException(operation + ": HTTP " + result.Status, result.Status);
+                return result.Body;
+            }
+            throw new BackendException(operation + ": unauthorized", 401);
+        }
     }
 }

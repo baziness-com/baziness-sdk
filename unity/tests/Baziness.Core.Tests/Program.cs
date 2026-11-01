@@ -122,6 +122,26 @@ internal static class Program
             await Control("referral-rewards", "{\"userId\":" + session.UserId + ",\"count\":3}");
             Equal(await referrals.Collectable(), 3);
         });
+        await Test("install campaign asked from the device, matched by its fingerprint", async () =>
+        {
+            var server = await GameServer.Create();
+            var device = new DeviceInfo { deviceId = "unity-fp", model = "SM-A536E", osVersion = "13" };
+            var sessions = new SessionManager(server, device);
+            await sessions.Get();
+            var campaign = new InstallCampaign(new ClientHttp(), apiBase, sessions.Token, device);
+            Check((await campaign.Get()).IsPending, "pending before any click");
+            await Control("click", "{\"linkCode\":\"autumn\",\"clickId\":\"c7\",\"utmSource\":\"instagram\",\"ip\":\"127.0.0.1\"}");
+            var answer = await campaign.Get();
+            Equal(answer.status, "attributed");
+            Equal(answer.matchType, "probabilistic");
+            Equal(answer.campaignCode, "autumn");
+            Equal(answer.clickId, "c7");
+            Check(answer.found && answer.firstSeen != null, "found, with its first open");
+            var state = await Control("state", null) as Dictionary<string, object>;
+            var seen = (state?["fingerprints"] as List<object>)?.LastOrDefault() as Dictionary<string, object>;
+            Equal(seen?["deviceModel"] as string, "SM-A536E");
+            Equal(seen?["osVersion"] as string, "13");
+        });
         await Test("analytics: persisted queue, server-only names refused, one batch sent", async () =>
         {
             var server = await GameServer.Create();

@@ -86,6 +86,8 @@ namespace Baziness
         public static bool IsPageOpen => options?.PageView?.IsOpen == true;
         public static CoinBalance Coins { get; private set; }
         public static ReferralRewards Referrals { get; private set; }
+        /// <summary>The player's install campaign, matched by this device's fingerprint while pending (<see cref="GetCampaignAsync"/>).</summary>
+        public static InstallCampaign InstallCampaign { get; private set; }
 
         /// <summary>A new session (or null after logout). Your server's extra fields are on <c>Raw</c>.</summary>
         public static event Action<BackendSession> SessionChanged;
@@ -136,6 +138,7 @@ namespace Baziness
             };
             Coins = new CoinBalance(http, apiBase, sessions.Token);
             Referrals = new ReferralRewards(http, apiBase, sessions.Token);
+            InstallCampaign = new InstallCampaign(http, apiBase, sessions.Token, Device);
 
             // A launch from the Baziness app or another game: ?linkCode= on the deep link.
             HandleDeepLink(Application.absoluteURL, false);
@@ -189,6 +192,20 @@ namespace Baziness
         {
             RequireInitialized();
             return Referrals.Collectable();
+        }
+
+        /// <summary>
+        /// The player's install campaign, asked from this device. An install that came with no campaign
+        /// (no campaign link, UTMs, store referrer or APK campaign) is pending for 24 hours after its first
+        /// open; asking during that time matches it by this device's fingerprint (IP and User-Agent, plus
+        /// the device model and OS version) to the campaign link click it most likely followed
+        /// (<c>matchType</c> <c>probabilistic</c>). Ask after <see cref="StartAsync"/>; the answer is final
+        /// once it is no longer pending.
+        /// </summary>
+        public static Task<Campaign> GetCampaignAsync()
+        {
+            RequireInitialized();
+            return InstallCampaign.Get();
         }
 
         /// <summary>
@@ -307,7 +324,11 @@ namespace Baziness
             attribution.installer ??= Device.installer;
             SaveAttribution(attribution);
             if (sessions.Current == null) return; // goes with the first session request
-            var result = await http.Send("POST", apiBase + "/analytics/attribution", MiniJson.Serialize(attribution.ToDictionary()),
+            // With no campaign in it, Baziness can still match the install by this device's fingerprint.
+            var body = attribution.ToDictionary();
+            if (!string.IsNullOrEmpty(Device.model)) body["deviceModel"] = Device.model;
+            if (!string.IsNullOrEmpty(Device.osVersion)) body["osVersion"] = Device.osVersion;
+            var result = await http.Send("POST", apiBase + "/analytics/attribution", MiniJson.Serialize(body),
                 new Dictionary<string, string>
                 {
                     ["Content-Type"] = "application/json", ["Authorization"] = "Bearer " + await sessions.Token()

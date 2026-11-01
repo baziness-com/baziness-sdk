@@ -181,6 +181,26 @@ public final class Players {
         return Json.bool(answer, "isRegistered") ? Json.number(answer, "userId") : 0;
     }
 
+    /**
+     * Your player's install campaign. Pass the device as your server saw it (IP and User-Agent of the
+     * player's request, model and OS version from the device SDK): while the install is still pending
+     * (24 h after its first open, when it came with no campaign) Baziness first matches it by that
+     * fingerprint to the campaign link click it most likely followed ({@code matchType}
+     * {@code probabilistic}). Ask when the player opens the game; the answer is final once it is no
+     * longer pending. 403 for another game's player.
+     */
+    public Campaign campaign(long userId, DeviceFingerprint device) {
+        Map<String, Object> body = device == null ? new java.util.LinkedHashMap<String, Object>() : device.toWire();
+        // Asking again answers the same: a click wins one install, and the first answer is final.
+        return Campaign.fromWire(transport.request(
+                new Transport.Call("campaign", "POST", "/v2/client/attribution/" + userId, body, true, true)));
+    }
+
+    /** {@link #campaign(long, DeviceFingerprint)} without a device: the campaign as it stands, no matching. */
+    public Campaign campaign(long userId) {
+        return campaign(userId, null);
+    }
+
     /** The player's Baziness account ({@code phoneNumber}, {@code fullName}, …), or null before they sign in. */
     public Map<String, Object> accountData(long userId) {
         Object answer = transport.request(

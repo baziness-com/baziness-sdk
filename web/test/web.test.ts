@@ -3,8 +3,9 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { DeviceAnalytics } from '../src/analytics.js';
+import { InstallCampaign } from '../src/campaign.js';
 import { CoinBalance, ReferralRewards } from '../src/coins.js';
-import { parseBrowser, parseOs } from '../src/device.js';
+import { collectDevice, parseBrowser, parseOs } from '../src/device.js';
 import { readLaunch } from '../src/launch.js';
 import { pageUrl, parsePageMessage } from '../src/pages.js';
 import { SessionManager } from '../src/session.js';
@@ -38,7 +39,7 @@ async function control<T = unknown>(path: string, body?: unknown): Promise<T> {
 }
 
 /** A game server in miniature: what a real one does with the server SDK, straight against the fake hub. */
-async function gameServer() {
+async function gameServer(platform = 'Web') {
   const auth = await (await fetch(`${hub.apiBase}/client/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -53,7 +54,7 @@ async function gameServer() {
       const answer = await (await fetch(`${hub.apiBase}/v2/client/create-user`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ deviceId: request.device.deviceId, platform: 'Web', store: 'Direct', linkCode: request.linkCode }),
+        body: JSON.stringify({ deviceId: request.device.deviceId, platform, store: 'Direct', linkCode: request.linkCode }),
       })).json() as { userId: number; isLinkedToAccount: boolean; tokens: { accessToken: string; accessTokenExpiresAt: string } };
       userId = answer.userId;
       return { userId, isLinkedToAccount: answer.isLinkedToAccount, accessToken: answer.tokens.accessToken, accessTokenExpiresAt: answer.tokens.accessTokenExpiresAt };
@@ -72,7 +73,7 @@ async function gameServer() {
   return { backend, calls, userId: () => userId };
 }
 
-const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.3.0' } as const;
+const device = { deviceId: 'web-device', platform: 'Web', store: 'Direct', deviceType: 'desktop', sdk: 'web', sdkVersion: '1.4.0' } as const;
 
 describe('launch parameters', () => {
   it('keeps the first touch, takes the link code once and cleans the address', () => {
@@ -172,6 +173,36 @@ describe('session, coins and analytics against the platform', () => {
     assert.equal(await referrals.collectable(), 0);
     await control('referral-rewards', { userId: session.userId, count: 3 });
     assert.equal(await referrals.collectable(), 3);
+  });
+
+  it('asks for the install campaign from the device, which Baziness matches by its fingerprint', async () => {
+    const server = await gameServer('Android');
+    const android = { ...device, deviceId: 'android-device', model: 'SM-A536E', osVersion: '13' };
+    const sessions = new SessionManager(server.backend, android, { linkCode: null, attribution: null });
+    await sessions.get();
+    const campaign = new InstallCampaign(hub.apiBase, (force) => sessions.token(force), android, fetch);
+    assert.equal((await campaign.get()).status, 'pending');
+
+    await control('click', { linkCode: 'autumn', clickId: 'c9', utmSource: 'instagram', ip: '127.0.0.1' });
+    const answer = await campaign.get();
+    assert.deepEqual([answer.status, answer.matchType, answer.campaignCode, answer.clickId, answer.utmSource],
+      ['attributed', 'probabilistic', 'autumn', 'c9', 'instagram']);
+    const seen = (await control('state') as { fingerprints: Array<{ via: string; deviceModel: string; osVersion: string }> }).fingerprints.at(-1);
+    assert.deepEqual([seen?.via, seen?.deviceModel, seen?.osVersion], ['device', 'SM-A536E', '13']);
+  });
+
+  it('never reports the reduced User-Agent\'s frozen Android version as the device\'s', () => {
+    const reduced = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Mobile Safari/537.36';
+    const realNavigator = globalThis.navigator;
+    Object.defineProperty(globalThis, 'navigator', { value: { userAgent: reduced, language: 'fa-IR' }, configurable: true });
+    try {
+      const info = collectDevice(memoryStore());
+      assert.equal(info.os, 'Android');
+      assert.equal(info.osVersion, undefined);
+      assert.equal(info.model, undefined);
+    } finally {
+      Object.defineProperty(globalThis, 'navigator', { value: realNavigator, configurable: true });
+    }
   });
 
   it('queues events in storage, refuses server-only names and sends one batch', async () => {

@@ -1,6 +1,6 @@
 import { uuid, type KeyValueStore } from './storage.js';
 
-export const SDK_VERSION = '1.3.0';
+export const SDK_VERSION = '1.4.0';
 
 /** What the SDK knows about the player's device. Send it to your server with the session request. */
 export interface DeviceInfo {
@@ -28,8 +28,15 @@ export interface DeviceInfo {
 interface NavigatorExtras {
   deviceMemory?: number;
   connection?: { effectiveType?: string };
-  userAgentData?: { mobile?: boolean; platform?: string };
+  userAgentData?: {
+    mobile?: boolean;
+    platform?: string;
+    getHighEntropyValues?(hints: string[]): Promise<{ model?: string; platformVersion?: string }>;
+  };
 }
+
+// Chrome's reduced User-Agent: every Android device reads "Android 10; K", whatever it really is.
+const REDUCED_ANDROID = /Android 10; K[;)]/;
 
 const DEVICE_ID_KEY = 'baziness:device-id';
 
@@ -51,7 +58,8 @@ export function collectDevice(store: KeyValueStore, appVersion?: string): Device
     sdkVersion: SDK_VERSION,
   };
   if (os) info.os = os;
-  if (osVersion) info.osVersion = osVersion;
+  // The reduced User-Agent's "10" is frozen, not the device's version: refineDevice reads the real one.
+  if (osVersion && !REDUCED_ANDROID.test(ua)) info.osVersion = osVersion;
   const browser = parseBrowser(ua);
   if (browser) info.browser = browser;
   const model = ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/)?.[1]?.trim();
@@ -70,6 +78,29 @@ export function collectDevice(store: KeyValueStore, appVersion?: string): Device
   if (nav.deviceMemory) info.memoryMb = Math.round(nav.deviceMemory * 1024);
   if (nav.connection?.effectiveType) info.network = nav.connection.effectiveType;
   if (appVersion) info.appVersion = appVersion;
+  return info;
+}
+
+/**
+ * Fills in the device's real model and OS version where the browser hides them behind its reduced
+ * User-Agent ("Android 10; K"), from Chrome's client hints (`navigator.userAgentData`). They make
+ * fingerprint attribution far more precise. Browsers without client hints keep what the User-Agent
+ * gave; never takes longer than `timeoutMs`.
+ */
+export async function refineDevice(info: DeviceInfo, timeoutMs = 1000): Promise<DeviceInfo> {
+  const hints = (typeof navigator === 'undefined' ? undefined : (navigator as Navigator & NavigatorExtras).userAgentData)
+    ?.getHighEntropyValues;
+  if (!hints) return info;
+  try {
+    const values = await Promise.race([
+      hints.call((navigator as Navigator & NavigatorExtras).userAgentData, ['model', 'platformVersion']),
+      new Promise<undefined>((done) => setTimeout(() => done(undefined), timeoutMs)),
+    ]);
+    if (values?.model?.trim()) info.model = values.model.trim();
+    if (values?.platformVersion?.trim() && info.os === 'Android') info.osVersion = values.platformVersion.trim();
+  } catch {
+    // client hints refused: keep the User-Agent's values
+  }
   return info;
 }
 

@@ -1,7 +1,8 @@
 import { DeviceAnalytics, type DeviceAnalyticsOptions } from './analytics.js';
 import type { BackendSession, GameBackend } from './backend.js';
+import { InstallCampaign } from './campaign.js';
 import { CoinBalance, ReferralRewards } from './coins.js';
-import { collectDevice, SDK_VERSION, type DeviceInfo } from './device.js';
+import { collectDevice, refineDevice, SDK_VERSION, type DeviceInfo } from './device.js';
 import { ENVIRONMENTS, type BazinessEnvironment } from './environment.js';
 import { readLaunch, type Attribution, type LaunchParams } from './launch.js';
 import { PageOverlay, pageUrl, parsePageMessage, type OverlayOptions, type PageMessage, type PageName } from './pages.js';
@@ -68,6 +69,8 @@ export class BazinessWeb {
   readonly analytics: DeviceAnalytics;
   readonly coins: CoinBalance;
   readonly referrals: ReferralRewards;
+  /** The player's install campaign (`campaign.get()`), matched by this device's fingerprint while pending. */
+  readonly campaign: InstallCampaign;
 
   private readonly options: BazinessWebOptions;
   private readonly apiBase: string;
@@ -77,6 +80,7 @@ export class BazinessWeb {
   private readonly overlay: PageOverlay;
   private readonly handlers = new Map<keyof BazinessEvents, Set<Handler<never>>>();
   private readonly cleanups: Array<() => void> = [];
+  private readonly refined: Promise<DeviceInfo>;
   private openPageName: string | null = null;
   private openedAt = 0;
 
@@ -117,7 +121,9 @@ export class BazinessWeb {
     this.analytics.appVersion = options.appVersion;
     this.coins = new CoinBalance(this.apiBase, token, fetchImpl);
     this.referrals = new ReferralRewards(this.apiBase, token, fetchImpl);
+    this.campaign = new InstallCampaign(this.apiBase, token, this.device, fetchImpl);
     this.overlay = new PageOverlay(options.overlay);
+    this.refined = refineDevice(this.device);
 
     this.sessions.onChange((session) => {
       if (session?.sessionId) this.analytics.sessionId = session.sessionId;
@@ -126,8 +132,12 @@ export class BazinessWeb {
     this.listen();
   }
 
-  /** Get the first session from your server (sends the launch link code and attribution). */
-  start(): Promise<BackendSession> {
+  /**
+   * Get the first session from your server (sends the launch link code, attribution and the device,
+   * with its real model and OS version where the browser gives them).
+   */
+  async start(): Promise<BackendSession> {
+    await this.refined;
     return this.sessions.get();
   }
 

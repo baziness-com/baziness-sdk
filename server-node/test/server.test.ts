@@ -193,6 +193,36 @@ describe('players', () => {
     assert.equal(await accessTokenCalls(), 1);
   });
 
+  it('reads a player\'s campaign, matching a pending install by the device the server saw', async () => {
+    const { baziness } = sdk(hub);
+    const android = { deviceId: 'device-fp', platform: 'Android', store: 'Direct' } as const;
+    const { userId } = await baziness.players.signIn(android);
+    assert.equal((await baziness.players.campaign(userId)).status, 'pending');
+
+    await control(hub, 'click', { linkCode: 'autumn', clickId: 'c1', utmSource: 'instagram', ip: '31.2.246.186' });
+    const campaign = await baziness.players.campaign(userId, {
+      ip: ' 31.2.246.186 ', userAgent: 'Mozilla/5.0 (Linux; Android 15; A142)', deviceModel: 'A142', osVersion: '15',
+    });
+    assert.equal(campaign.found, true);
+    assert.equal(campaign.status, 'attributed');
+    assert.equal(campaign.matchType, 'probabilistic');
+    assert.equal(campaign.campaignCode, 'autumn');
+    assert.equal(campaign.clickId, 'c1');
+    assert.equal(campaign.utmSource, 'instagram');
+    assert.ok(campaign.firstSeen instanceof Date);
+    const seen = (await state()).fingerprints.at(-1);
+    assert.deepEqual([seen?.via, seen?.ip, seen?.deviceModel, seen?.osVersion], ['server', '31.2.246.186', 'A142', '15']);
+  });
+
+  it('answers a deterministic campaign as it is, and refuses another game\'s player', async () => {
+    const { baziness } = sdk(hub);
+    const { userId } = await baziness.players.signIn({ ...device, attribution: { utmSource: 'telegram', campaignCode: 'tg' } });
+    const campaign = await baziness.players.campaign(userId, { ip: '127.0.0.1' });
+    assert.deepEqual([campaign.status, campaign.matchType, campaign.campaignCode], ['attributed', 'deterministic', 'tg']);
+    const other = sdk(hub, { clientId: 13, clientSecret: 'fake-client-secret-13' }).baziness;
+    await assert.rejects(other.players.campaign(userId), (e: BazinessError) => e.status === 403);
+  });
+
   it('finds a player by phone number, only among its own players', async () => {
     const { baziness } = sdk(hub);
     const { userId } = await baziness.players.signIn(device);

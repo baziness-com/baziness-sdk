@@ -5,12 +5,12 @@ Yatzy's, and any other JVM server. Same API and behaviour as `@baziness/server`.
 
 ## Install
 
-Download `baziness-sdk-java-1.3.0.jar` from the
-[v1.3.0 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.3.0) and add
+Download `baziness-sdk-java-1.4.0.jar` from the
+[v1.4.0 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.4.0) and add
 it to your server's classpath. The JAR has no runtime dependencies and targets Java 8.
 
 ```bash
-javac -cp baziness-sdk-java-1.3.0.jar YourGameServer.java
+javac -cp baziness-sdk-java-1.4.0.jar YourGameServer.java
 ```
 
 ## Quick start
@@ -31,8 +31,23 @@ Integer bundleId = baziness.offers().get(playerId);                       // you
 baziness.close();                                                // extension destroy()
 ```
 
+## The player's install campaign
+
+```java
+// When the player logs in: the device as your server saw it (SmartFox: the session's address).
+Campaign campaign = baziness.players().campaign(userId,
+        new DeviceFingerprint(user.getSession().getAddress(), userAgent).withDevice(device.model, device.osVersion));
+// campaign.status "attributed", campaign.matchType "probabilistic", campaign.utmSource, campaign.campaignCode …
+```
+
+An install that came with no campaign (no campaign link, UTMs, store referrer or APK campaign) is
+`pending` for 24 hours after its first open. Asking with the device's fingerprint during that time
+matches it to the campaign link click it most likely followed (`matchType` `probabilistic`). A link,
+referrer or APK campaign is `deterministic` and always wins; once the campaign is no longer pending
+(`isPending()`) the answer is final.
+
 Calls block: make them from a worker thread, never from SmartFox's I/O threads.
 
 ```bash
-./build.sh           # javac --release 8 → out/baziness-server-1.3.0.jar, then 14 tests (needs Node for the fake platform)
+./build.sh           # javac --release 8 → out/baziness-server-1.4.0.jar, then 15 tests (needs Node for the fake platform)
 ```

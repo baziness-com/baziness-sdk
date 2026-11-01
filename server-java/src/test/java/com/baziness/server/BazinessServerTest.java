@@ -123,6 +123,26 @@ public final class BazinessServerTest {
                 control("offer", "{\"playerId\":42,\"bundleId\":7}");
                 equal(baziness.offers().get(42), 7);
             });
+            test("reads a player's campaign, matching a pending install by its fingerprint", () -> {
+                BazinessServer baziness = sdk(null);
+                long userId = baziness.players().signIn(new SignInRequest("fp", "Android", "Direct")).userId;
+                equal(baziness.players().campaign(userId).status, "pending");
+
+                control("click", "{\"linkCode\":\"autumn\",\"clickId\":\"c1\",\"utmSource\":\"instagram\",\"ip\":\"31.2.246.186\"}");
+                Campaign campaign = baziness.players().campaign(userId,
+                        new DeviceFingerprint("31.2.246.186", "Mozilla/5.0 (Linux; Android 15; A142)").withDevice("A142", "15"));
+                check(campaign.found && !campaign.isPending(), "attributed");
+                equal(campaign.matchType, "probabilistic");
+                equal(campaign.campaignCode, "autumn");
+                equal(campaign.clickId, "c1");
+                equal(campaign.utmSource, "instagram");
+                try {
+                    sdk(null, 13, "fake-client-secret-13").players().campaign(userId);
+                    check(false, "another game's player is refused");
+                } catch (BazinessException e) {
+                    equal(e.status(), 403);
+                }
+            });
             test("pays a grant once and re-authenticates after the client token expires", () -> {
                 BazinessServer baziness = sdk(new MemoryRefreshTokenStore());
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;

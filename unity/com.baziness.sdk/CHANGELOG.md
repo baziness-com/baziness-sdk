@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 — 2026-11-01
+
+- `BazinessSdk.GetCampaignAsync()`: the install's campaign (`Campaign`), asked from the device. One that
+  came with no campaign is pending for 24 h after first open and is matched by this device's
+  fingerprint to a recent campaign link click (`matchType` `probabilistic`).
+- A late `SetInstallReferrer` / `SetCampaignAttribution` report carries the device model and OS version,
+  so one without a campaign can still be matched.
+
 ## 1.3.0 — 2026-10-31
 
 - The page view appears at once and starts the web view while your server makes the link code

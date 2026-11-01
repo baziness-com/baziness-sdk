@@ -36,6 +36,7 @@ export interface HubState {
   coins: Record<string, number>;
   requests: Array<{ method: string; path: string }>;
   liveSessions: number;
+  fingerprints: Array<{ userId: number; via: 'device' | 'server'; ip?: string; userAgent?: string; deviceModel?: string; osVersion?: string }>;
 }
 
 /** An SDK on the fake hub. No refresh-token store, as since 1.1; pass `refreshTokens` to test a 1.0 integration. */
