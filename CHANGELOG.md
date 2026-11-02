@@ -6,6 +6,17 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-02
+
+- **Unity: pages open on a sheet, like the web SDK's**: the game stays in view above it, blurred and
+  shaded (`topGap`, `shade`, `blurGame`); a handle tops the sheet, and tapping it or the game closes the
+  page, as does dragging it down (dragged a little, it springs back: `dragToClose`). `handleStripHeight`,
+  `handleSize`, `handleColor` and `cornerRadius` style it; `closeButtonPosition` is now from the sheet's
+  top-right corner.
+- **Unity: a page that cannot load shows a retry button**, with the close button, instead of a blank web
+  view that blocks the game: on a load error (Android reported its error page as loaded) and when the page
+  has not loaded in `PageViewStyle.loadTimeoutSeconds` (20 s). `retryIcon` and `retryButtonSize` style it.
+
 ## [1.7.0] - 2026-11-02
 
 - **Unity: `BazinessSdk.ReportTrackerAttribution(tracker, …)`**, one call for every attribution SDK's answer

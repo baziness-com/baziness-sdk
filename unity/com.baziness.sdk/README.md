@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 Package Manager → **Add package from git URL**:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.7.0`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.7.1`
 
 That is all: the web view comes with it. The package bundles
 [gree unity-webview](https://github.com/gree/unity-webview) (zlib, see
@@ -60,11 +60,13 @@ address and app name. Pay reports these payments to Baziness itself.
 
 ## The page view
 
-`BazinessWebView` shows a page over the game. It appears the moment `OpenPage` is called: a backdrop
-slides up and a spinner turns while your server makes the link code and the page loads, a close button
-appears when it takes longer than three seconds, the page slides down when it closes, and the Android
-back button closes it. Change its look with `PageViewStyle` (backdrop colour,
-spinner and close sprites, sizes, positions, timings, canvas sorting order) in the settings asset or in
+`BazinessWebView` shows a page on a sheet over the game. It appears the moment `OpenPage` is called: the
+sheet slides up, the game stays in view above it (blurred and shaded), and a spinner turns while your
+server makes the link code and the page loads. A handle tops the sheet: tapping it or the game closes the
+page, and so does dragging it down. A close button appears when the page takes longer than three seconds,
+a retry button when it cannot load, and the Android back button closes it. Change its look with
+`PageViewStyle` (sheet and shade colours, the gap above the sheet, handle, corners, spinner, close and retry
+sprites, sizes, positions, timings, canvas sorting order) in the settings asset or in
 `BazinessOptions.PageViewStyle`; the defaults are Yatzy's. To show pages your own way, pass an
 `IPageView` (`SdkType`, `IsOpen`, `Open`, `Close`) as `BazinessOptions.PageView`; implement
 `IInstantPageView` (`ShowLoading`) too for it to appear before the link code arrives.
