@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 Package Manager → **Add package from git URL**:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.6.0`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.7.0`
 
 That is all: the web view comes with it. The package bundles
 [gree unity-webview](https://github.com/gree/unity-webview) (zlib, see
@@ -81,6 +81,7 @@ spinner and close sprites, sizes, positions, timings, canvas sorting order) in t
 | `GetCampaignAsync` | the install's campaign; one still pending (24 h after first open, no campaign) is matched by this device's fingerprint to a recent campaign link click (`matchType` `probabilistic`) |
 | `OpenCheckoutAsync`, `FindPaymentAsync`, `Pay` | Baziness Pay: open the checkout page, find the payment when the player says they paid |
 | `Analytics.PurchaseStarted / PurchaseFailed / AdImpression / AdRevenue / TutorialBegin / TutorialComplete / LevelStart / LevelComplete / LevelFail / ResourceEarn / ResourceSpend` | player analytics, queued in a file and sent in batches |
+| `ReportTrackerAttribution` | call it from every attribution SDK's callback (Metrix, AppMetrica, …) with what it reported, before or after `Initialize`, on any thread; the first campaign is kept, organic answers skipped |
 | `HandleDeepLink` (automatic), `SetInstallReferrer`, `SetCampaignAttribution` | first-touch attribution: deep-link `utm_*` / `bz_lc` / `bz_click`, store referrer, the campaign your attribution SDK reports |
 | `Device`, `Attribution` | what goes to your server with every session request |
 

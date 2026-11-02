@@ -75,6 +75,9 @@ namespace Baziness
         private static int pageAttempt;
         private static bool started;
         private static BazinessRunner runner;
+        // Trackers answer on their own threads, often before Initialize: kept here until the runner applies them.
+        private static readonly object trackerLock = new object();
+        private static readonly List<KeyValuePair<string, Attribution>> trackerAnswers = new List<KeyValuePair<string, Attribution>>();
 
         public static bool IsInitialized { get; private set; }
         public static BazinessEnvironment Environment => options?.Environment ?? BazinessEnvironment.Staging;
@@ -351,11 +354,91 @@ namespace Baziness
             return RecordLateAttribution(attribution);
         }
 
+        /// <summary>
+        /// Pass every attribution SDK's answer here as it comes (Metrix, AppMetrica, Adjust, …), from its own
+        /// callback, before or after <see cref="Initialize"/>, on any thread. Give what the tracker gave: UTMs,
+        /// AppMetrica's deferred deep link parameters (they carry a Baziness link's <c>bz_lc</c> and
+        /// <c>bz_click</c>), or its own field names (<c>source</c>, <c>campaign</c>, <c>adset</c>, <c>ad</c>).
+        /// The install keeps its first campaign: a Baziness link, deep link or store referrer comes first,
+        /// then the first tracker that answers; empty and organic answers are skipped. Sent with the first
+        /// session, or straight to Baziness after it (accepted within 24 h of the first open).
+        /// <code>
+        /// AppMetrica.RequestDeferredDeeplinkParameters(p => BazinessSdk.ReportTrackerAttribution("appmetrica", p));
+        /// </code>
+        /// </summary>
+        /// <param name="tracker">Which SDK answered, e.g. <c>metrix</c> or <c>appmetrica</c>.</param>
+        public static void ReportTrackerAttribution(string tracker, IDictionary<string, string> values)
+        {
+            var answer = TrackerAttribution.From(values, DateTime.UtcNow);
+            if (answer == null) return;
+            lock (trackerLock) trackerAnswers.Add(new KeyValuePair<string, Attribution>(tracker ?? "", answer));
+        }
+
+        /// <summary>
+        /// <see cref="ReportTrackerAttribution(string, IDictionary{string, string})"/> with the usual fields,
+        /// e.g. Metrix's <c>acquisitionSource</c>, <c>acquisitionCampaign</c>, <c>acquisitionAdSet</c>,
+        /// <c>acquisitionAd</c>.
+        /// </summary>
+        public static void ReportTrackerAttribution(string tracker, string source, string campaign = null,
+            string adSet = null, string ad = null)
+        {
+            ReportTrackerAttribution(tracker, new Dictionary<string, string>
+            {
+                ["utm_source"] = source, ["utm_campaign"] = campaign, ["utm_content"] = adSet, ["utm_term"] = ad
+            });
+        }
+
+        // On the main thread (the runner), once initialized.
+        internal static void ApplyTrackerAnswers()
+        {
+            if (!IsInitialized) return;
+            KeyValuePair<string, Attribution>[] answers;
+            lock (trackerLock)
+            {
+                if (trackerAnswers.Count == 0) return;
+                answers = trackerAnswers.ToArray();
+                trackerAnswers.Clear();
+            }
+            foreach (var pair in answers)
+            {
+                var answer = pair.Value;
+                Analytics.Record("baziness:attribution:tracker", null, new Dictionary<string, object>
+                {
+                    ["tracker"] = pair.Key, ["source"] = answer.utmSource ?? "", ["campaign"] = answer.utmCampaign ?? ""
+                });
+                var attribution = Attribution ?? new Attribution { landedAt = answer.landedAt };
+                if (attribution.HasCampaign) continue;
+                attribution.utmSource = answer.utmSource;
+                attribution.utmMedium = answer.utmMedium;
+                attribution.utmCampaign = answer.utmCampaign;
+                attribution.utmContent = answer.utmContent;
+                attribution.utmTerm = answer.utmTerm;
+                attribution.campaignCode = answer.campaignCode;
+                attribution.clickId = answer.clickId;
+                _ = RecordTrackerAttribution(attribution);
+            }
+        }
+
+        private static async Task RecordTrackerAttribution(Attribution attribution)
+        {
+            try
+            {
+                await RecordLateAttribution(attribution);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("[baziness] attribution not recorded: " + error.Message);
+            }
+        }
+
         private static async Task RecordLateAttribution(Attribution attribution)
         {
             attribution.installer ??= Device.installer;
             SaveAttribution(attribution);
-            if (sessions.Current == null) return; // goes with the first session request
+            // Not started: it goes with the first session request. Started: that request may already be on
+            // its way without it, so wait for the session and send it after.
+            if (sessions.Current == null && !started) return;
+            await sessions.Get();
             // With no campaign in it, Baziness can still match the install by this device's fingerprint.
             var body = attribution.ToDictionary();
             if (!string.IsNullOrEmpty(Device.model)) body["deviceModel"] = Device.model;

@@ -83,6 +83,38 @@ internal static class Program
             Check(!new Attribution { installer = "com.farsitel.bazaar" }.HasCampaign, "the installer alone is not");
             return Task.CompletedTask;
         });
+        await Test("tracker answers: UTMs, a Baziness link, the tracker's own names; organic and empty are none", () =>
+        {
+            var now = new DateTime(2026, 11, 2, 10, 0, 0, DateTimeKind.Utc);
+            var metrix = TrackerAttribution.From(new Dictionary<string, string>
+            {
+                ["acquisitionSource"] = " Google Ads ", ["acquisitionCampaign"] = "autumn", ["acquisitionAdSet"] = "video",
+                ["acquisitionAd"] = "v1"
+            }, now);
+            Equal(metrix.utmSource, "Google Ads");
+            Equal(metrix.utmCampaign, "autumn");
+            Equal(metrix.utmContent, "video");
+            Equal(metrix.utmTerm, "v1");
+            Equal(metrix.landedAt, "2026-11-02T10:00:00.000Z");
+
+            var appMetrica = TrackerAttribution.From(new Dictionary<string, string>
+            {
+                ["UTM_SOURCE"] = "tapsell", ["utm_campaign"] = "c", ["bz_lc"] = "yatzy-tapsell", ["bz_click"] = "k1"
+            }, now);
+            Equal(appMetrica.utmSource, "tapsell");
+            Equal(appMetrica.campaignCode, "yatzy-tapsell");
+            Equal(appMetrica.clickId, "k1");
+            Equal(TrackerAttribution.From(new Dictionary<string, string> { ["source"] = "x", ["campaign"] = "y", ["utm_campaign"] = "z" }, now).utmCampaign, "z");
+
+            Equal(TrackerAttribution.From(new Dictionary<string, string> { ["utm_source"] = "google-play", ["utm_medium"] = "organic" }, now), null);
+            Equal(TrackerAttribution.From(new Dictionary<string, string> { ["acquisitionSource"] = "Organic" }, now), null);
+            Check(TrackerAttribution.From(new Dictionary<string, string> { ["utm_medium"] = "organic", ["bz_lc"] = "c1" }, now) != null,
+                "a Baziness link is a campaign even when the tracker says organic");
+            Equal(TrackerAttribution.From(new Dictionary<string, string> { ["utm_campaign"] = "no source", ["utm_source"] = " " }, now), null);
+            Equal(TrackerAttribution.From(new Dictionary<string, string>(), now), null);
+            Equal(TrackerAttribution.From(null, now), null);
+            return Task.CompletedTask;
+        });
         await Test("JSON round trip (dictionaries, numbers, unicode)", () =>
         {
             var json = MiniJson.Serialize(new Dictionary<string, object> { ["a"] = new List<object> { 1, 2.5, true, null }, ["b"] = "x\"é", ["skip"] = null });

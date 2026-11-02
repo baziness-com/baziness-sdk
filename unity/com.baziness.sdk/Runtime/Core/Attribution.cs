@@ -140,6 +140,58 @@ namespace Baziness
         }
     }
 
+    /// <summary>
+    /// What an attribution SDK (Metrix, AppMetrica, Adjust, …) reported for this install, as first-touch
+    /// <see cref="Attribution"/>. Takes UTMs, a Baziness link's <c>bz_lc</c> / <c>bz_click</c> (AppMetrica's
+    /// deferred deep link parameters carry them), or the tracker's own field names. An empty or organic
+    /// answer is no campaign: null.
+    /// </summary>
+    public static class TrackerAttribution
+    {
+        private static readonly string[] SourceKeys = { "utm_source", "source", "media_source", "network", "publisher", "acquisitionSource" };
+        private static readonly string[] MediumKeys = { "utm_medium", "medium" };
+        private static readonly string[] CampaignKeys = { "utm_campaign", "campaign", "campaign_name", "acquisitionCampaign" };
+        private static readonly string[] ContentKeys = { "utm_content", "adset", "ad_set", "adgroup", "ad_group", "acquisitionAdSet" };
+        private static readonly string[] TermKeys = { "utm_term", "ad", "creative", "acquisitionAd" };
+
+        public static Attribution From(IDictionary<string, string> values, DateTime nowUtc)
+        {
+            if (values == null) return null;
+            var known = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in values)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value)) continue;
+                var key = pair.Key.Trim();
+                if (!known.ContainsKey(key)) known[key] = pair.Value.Trim();
+            }
+            string Pick(string[] keys)
+            {
+                foreach (var key in keys)
+                    if (known.TryGetValue(key, out var value)) return value;
+                return null;
+            }
+
+            var attribution = new Attribution
+            {
+                utmSource = Pick(SourceKeys), utmMedium = Pick(MediumKeys), utmCampaign = Pick(CampaignKeys),
+                utmContent = Pick(ContentKeys), utmTerm = Pick(TermKeys),
+                campaignCode = Pick(new[] { "bz_lc" }), clickId = Pick(new[] { "bz_click" })
+            };
+            if (!attribution.HasCampaign || IsOrganic(attribution)) return null;
+            attribution.landedAt = nowUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture);
+            return attribution;
+        }
+
+        // Trackers say "organic" for an install they found no campaign for (Google Play's own referrer says
+        // utm_medium=organic); a Baziness link in the answer is a campaign all the same.
+        private static bool IsOrganic(Attribution attribution) =>
+            string.IsNullOrEmpty(attribution.campaignCode) && string.IsNullOrEmpty(attribution.clickId)
+            && (Is(attribution.utmSource, "organic") || Is(attribution.utmMedium, "organic"));
+
+        private static bool Is(string value, string expected) =>
+            string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>What a launch address (deep link or WebGL page URL) carried.</summary>
     public sealed class LaunchParams
     {

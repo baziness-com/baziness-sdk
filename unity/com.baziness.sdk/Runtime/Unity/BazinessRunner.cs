@@ -10,6 +10,7 @@ namespace Baziness
 
         private void Update()
         {
+            BazinessSdk.ApplyTrackerAnswers();
             if (Time.unscaledTime < nextTick) return;
             nextTick = Time.unscaledTime + 1f;
             BazinessSdk.Analytics?.Tick();

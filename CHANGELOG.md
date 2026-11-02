@@ -6,6 +6,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-02
+
+- **Unity: `BazinessSdk.ReportTrackerAttribution(tracker, …)`**, one call for every attribution SDK's answer
+  (Metrix, AppMetrica, Adjust, …): pass what the tracker reported, as a dictionary (UTMs, AppMetrica's deferred
+  deep link parameters with a Baziness link's `bz_lc` / `bz_click`, or the tracker's own names such as
+  `source`, `campaign`, `adset`, `ad`) or as `source, campaign, adSet, ad`. It can be called before
+  `Initialize` and from the tracker's own thread. The install keeps its first campaign; empty and organic
+  answers are skipped; each answer is also recorded as the event `baziness:attribution:tracker`.
+- **Unity: a campaign that arrives while the first session request is on its way is no longer lost**:
+  `SetInstallReferrer`, `SetCampaignAttribution` and tracker answers wait for that session and send it
+  straight after.
+
 ## [1.6.0] - 2026-11-02
 
 - **Report Baziness Pay payments too**: Baziness counts what game servers report, so the server SDKs'
