@@ -148,7 +148,7 @@ namespace Baziness
             InstallCampaign = new InstallCampaign(http, apiBase, sessions.Token, Device);
             var payBase = string.IsNullOrEmpty(options.PayBaseUrlOverride) ? BazinessUrls.Pay(options.Environment) : options.PayBaseUrlOverride;
             Pay = new BazinessPay(http, payBase,
-                string.IsNullOrEmpty(options.PayPackageName) ? options.PackageName : options.PayPackageName, sessions.Token);
+                string.IsNullOrEmpty(options.PayPackageName) ? options.PackageName : options.PayPackageName);
 
             // A launch from the Baziness app or another game: ?linkCode= on the deep link.
             HandleDeepLink(Application.absoluteURL, false);

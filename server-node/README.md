@@ -66,7 +66,8 @@ if (await pay.verify(playerId, sku, token)) {        // your player id; the toke
 const payment = await pay.find(playerId, sku);       // or null: complete it without a device token
 ```
 
-Pay reports these payments to Baziness itself: never `purchases.record` them. `BAZINESS_PAY_BASE_URL`
+Report each payment you granted like any other purchase: `purchases.record` with gateway `baziness_pay`
+and the payment's token as the order id (provider: `payment.gateway`, when you have it). `BAZINESS_PAY_BASE_URL`
 (or `payBaseUrl`) overrides the environment's Pay address.
 
 `npm test` runs 41 tests against the shared fake platform in `../tools/fake-hub`.

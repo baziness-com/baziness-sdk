@@ -33,7 +33,8 @@ namespace Baziness
     /// <item>Send the payment's token to your server. It verifies it with the server SDK
     /// (<c>pay.verify</c>), grants the package once per token and consumes it (<c>pay.consume</c>).</item>
     /// </list>
-    /// Pay reports these payments to Baziness itself.
+    /// Your server reports each granted payment to Baziness like any purchase (<c>purchases.record</c>,
+    /// gateway <c>baziness_pay</c>).
     /// </summary>
     public sealed class BazinessPay
     {
@@ -41,45 +42,28 @@ namespace Baziness
         private const string NotValid = "payment_is_not_valid";
 
         private readonly IHttp http;
-        private readonly Func<bool, Task<string>> playerToken;
 
         /// <param name="payBase">Baziness Pay's root, e.g. <c>https://pay.baziness.com</c>.</param>
         /// <param name="packageName">Your app in Baziness Pay (Pay's <c>pname</c>).</param>
-        /// <param name="playerToken">The player's Baziness token, sent with the checkout so the payment counts for them.</param>
-        public BazinessPay(IHttp http, string payBase, string packageName, Func<bool, Task<string>> playerToken)
+        public BazinessPay(IHttp http, string payBase, string packageName)
         {
             if (string.IsNullOrEmpty(packageName)) throw new ArgumentException("packageName is required (your app in Baziness Pay)");
             this.http = http;
             PayBase = payBase.TrimEnd('/');
             PackageName = packageName;
-            this.playerToken = playerToken;
         }
 
         public string PayBase { get; }
         public string PackageName { get; }
 
-        /// <summary>
-        /// The checkout page for this package. With a Baziness session the player's token goes along
-        /// (<c>bztoken</c>), so the payment counts for the player's Baziness account; without one the
-        /// checkout still works.
-        /// </summary>
+        /// <summary>The checkout page for this package.</summary>
         /// <param name="playerId">Your player id, the same one your server verifies the payment with.</param>
-        public async Task<string> CheckoutUrl(string sku, long playerId)
+        public Task<string> CheckoutUrl(string sku, long playerId)
         {
             if (string.IsNullOrEmpty(sku)) throw new ArgumentException("sku is required");
-            var url = PayBase + "/buy?sku=" + Uri.EscapeDataString(sku)
-                      + "&uid=" + playerId.ToString(CultureInfo.InvariantCulture)
-                      + "&pname=" + Uri.EscapeDataString(PackageName);
-            string token = null;
-            try
-            {
-                if (playerToken != null) token = await playerToken(false);
-            }
-            catch (Exception)
-            {
-                // No Baziness session now: the payment still belongs to the game, just not to the person.
-            }
-            return string.IsNullOrEmpty(token) ? url : url + "&bztoken=" + Uri.EscapeDataString(token);
+            return Task.FromResult(PayBase + "/buy?sku=" + Uri.EscapeDataString(sku)
+                                   + "&uid=" + playerId.ToString(CultureInfo.InvariantCulture)
+                                   + "&pname=" + Uri.EscapeDataString(PackageName));
         }
 
         /// <summary>

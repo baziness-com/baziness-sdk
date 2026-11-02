@@ -328,6 +328,16 @@ describe('purchases and analytics', () => {
     assert.equal(completed[0]!.value, 49_000);
   });
 
+  it('records a Baziness Pay purchase, keyed by the payment token', async () => {
+    const { baziness } = sdk(hub);
+    const { userId } = await baziness.players.signIn(device);
+    await baziness.purchases.record({ userId, amount: 99_000, gateway: 'baziness_pay', orderId: 'pay-token-1', provider: 'zarinpal' });
+
+    const recorded = (await state()).purchases.find((p) => p.orderId === 'pay-token-1');
+    assert.equal(recorded?.gateway, 'baziness_pay');
+    assert.equal(recorded?.provider, 'zarinpal');
+  });
+
   it('rejects purchases it cannot count', async () => {
     const { baziness } = sdk(hub);
     await assert.rejects(baziness.purchases.record({ userId: 1, amount: 10, gateway: 'direct', orderId: 'x' }), /provider/);

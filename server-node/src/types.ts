@@ -4,8 +4,8 @@ export type Platform = 'Android' | 'Ios' | 'Web' | 'Editor' | 'Windows' | 'Mac' 
 /** Where the build was installed from. Web games use `Direct`. */
 export type Store = 'Direct' | 'GooglePlay' | 'AppStore' | 'CafeBazaar' | 'Myket';
 
-/** Payment gateway of a purchase the game server reports. Baziness Pay reports its own payments. */
-export type PaymentGateway = 'cafebazaar' | 'myket' | 'googleplay' | 'appstore' | 'direct';
+/** Payment gateway of a purchase the game server reports: every payment, Baziness Pay included. */
+export type PaymentGateway = 'baziness_pay' | 'cafebazaar' | 'myket' | 'googleplay' | 'appstore' | 'direct';
 
 /**
  * First-touch attribution, collected by the device SDK on first open (landing UTMs, campaign link,

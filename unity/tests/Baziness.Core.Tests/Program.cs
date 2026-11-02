@@ -143,16 +143,10 @@ internal static class Program
             Equal(seen?["deviceModel"] as string, "SM-A536E");
             Equal(seen?["osVersion"] as string, "13");
         });
-        await Test("Baziness Pay: checkout with the player's token, then the payment once paid", async () =>
+        await Test("Baziness Pay: checkout, then the payment once paid", async () =>
         {
-            var server = await GameServer.Create();
-            var sessions = new SessionManager(server, new DeviceInfo { deviceId = "unity-6" });
-            var session = await sessions.Get();
-            var pay = new BazinessPay(new ClientHttp(), payBase + "/", "com.example.game", sessions.Token);
-            var url = await pay.CheckoutUrl("gems 100", 7);
-            Equal(url, payBase + "/buy?sku=gems%20100&uid=7&pname=com.example.game&bztoken=" + Uri.EscapeDataString(session.AccessToken));
-            var anonymous = new BazinessPay(new ClientHttp(), payBase, "com.example.game", _ => throw new BackendException("no session", 0));
-            Equal(await anonymous.CheckoutUrl("gems_100", 7), payBase + "/buy?sku=gems_100&uid=7&pname=com.example.game");
+            var pay = new BazinessPay(new ClientHttp(), payBase + "/", "com.example.game");
+            Equal(await pay.CheckoutUrl("gems 100", 7), payBase + "/buy?sku=gems%20100&uid=7&pname=com.example.game");
 
             Equal(await pay.FindPayment("gems_100", 7), null);
             var paid = MiniJson.Object(await Control("pay-payment", "{\"uid\":7,\"sku\":\"gems_100\"}"));
@@ -162,7 +156,7 @@ internal static class Program
             Equal(payment.Amount, 49000L);
             Equal(await pay.FindPayment("gems_100", 8), null);
 
-            var unknown = new BazinessPay(new ClientHttp(), payBase, "com.unknown.game", sessions.Token);
+            var unknown = new BazinessPay(new ClientHttp(), payBase, "com.unknown.game");
             await Throws(() => unknown.FindPayment("gems_100", 7));
             Equal(BazinessUrls.Pay(BazinessEnvironment.Production), "https://pay.baziness.com");
         });

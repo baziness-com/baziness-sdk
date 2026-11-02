@@ -36,7 +36,8 @@ const NOT_VALID = 'payment_is_not_valid';
 
 /**
  * Baziness Pay: the web checkout (`pay.baziness.com`) for packages registered in Pay under your app's
- * package name. Pay reports these payments to Baziness itself: never `purchases.record` them.
+ * package name. Report each payment you granted like any other: `purchases.record` with gateway
+ * `baziness_pay` and the payment's token as the order id.
  *
  * The flow: the device opens the checkout page (device SDK `openCheckout`), the player pays and comes
  * back to the game, taps "Complete purchase", the device finds the payment (`findPayment`) and sends its

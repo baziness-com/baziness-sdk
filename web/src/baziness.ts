@@ -129,7 +129,7 @@ export class BazinessWeb {
     this.coins = new CoinBalance(this.apiBase, token, fetchImpl);
     this.referrals = new ReferralRewards(this.apiBase, token, fetchImpl);
     this.campaign = new InstallCampaign(this.apiBase, token, this.device, fetchImpl);
-    this.pay = new BazinessPay(options.payBaseUrl ?? urls.pay, options.payPackageName ?? options.packageName, token, fetchImpl);
+    this.pay = new BazinessPay(options.payBaseUrl ?? urls.pay, options.payPackageName ?? options.packageName, fetchImpl);
     this.overlay = new PageOverlay(options.overlay);
     this.refined = refineDevice(this.device);
 

@@ -193,6 +193,7 @@ public final class BazinessServerTest {
                 equal(baziness.analytics().sessions().ensure(userId, null), sessionId);
                 baziness.analytics().levelComplete(userId, "7", 1200.0, null);
                 baziness.purchases().record(new Purchases.Purchase(userId, 49000, "cafebazaar", "order-1").sku("gems_100"));
+                baziness.purchases().record(new Purchases.Purchase(userId, 99000, "baziness_pay", "pay-token-1").provider("zarinpal"));
                 baziness.analytics().sessions().end(userId);
                 check(!baziness.analytics().track(userId, "Bad Name"), "invalid name dropped");
                 baziness.analytics().flush();
@@ -200,7 +201,7 @@ public final class BazinessServerTest {
                 for (Object event : (List<?>) Json.object(control("state", null)).get("serverEvents")) {
                     keys.add(Json.string(Json.object(event), "eventKey"));
                 }
-                equal(keys.toString(), "[auth_login, session_start, device_info, level_complete, iap_purchase_completed, session_end]");
+                equal(keys.toString(), "[auth_login, session_start, device_info, level_complete, iap_purchase_completed, iap_purchase_completed, session_end]");
             });
             test("Baziness Pay: finds, verifies the token of and consumes a paid payment once", () -> {
                 Pay pay = sdk(null).pay("com.example.game");

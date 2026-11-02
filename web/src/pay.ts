@@ -1,4 +1,3 @@
-import type { TokenSource } from './analytics.js';
 
 /** A payment the player completed on the Baziness Pay checkout page and your game has not consumed yet. */
 export interface BazinessPayment {
@@ -29,7 +28,8 @@ const NOT_VALID = 'payment_is_not_valid';
  * 3. Send the payment's token to your server. It verifies it with the server SDK (`pay.verify`), grants
  *    the package once per token and consumes it (`pay.consume`).
  *
- * Pay reports these payments to Baziness itself.
+ * Your server reports each granted payment to Baziness like any purchase (`purchases.record`, gateway
+ * `baziness_pay`).
  */
 export class BazinessPay {
   readonly payBase: string;
@@ -38,27 +38,16 @@ export class BazinessPay {
     payBase: string,
     /** Your app in Baziness Pay (Pay's `pname`). */
     readonly packageName: string,
-    private readonly token: TokenSource,
     private readonly fetchImpl: typeof fetch,
   ) {
     if (!packageName) throw new TypeError('Baziness: the Pay package name is required');
     this.payBase = payBase.replace(/\/+$/, '');
   }
 
-  /**
-   * The checkout page for this package. With a Baziness session the player's token goes along
-   * (`bztoken`), so the payment counts for the player's Baziness account; without one the checkout
-   * still works. `playerId` is your player id, the same one your server verifies the payment with.
-   */
+  /** The checkout page for this package. `playerId` is your player id, the same one your server verifies the payment with. */
   async checkoutUrl(sku: string, playerId: number): Promise<string> {
     if (!sku) throw new TypeError('Baziness: sku is required');
     const params = new URLSearchParams({ sku, uid: String(playerId), pname: this.packageName });
-    try {
-      const token = await this.token(false);
-      if (token) params.set('bztoken', token);
-    } catch {
-      // No Baziness session now: the payment still belongs to the game, just not to the person.
-    }
     return `${this.payBase}/buy?${params.toString()}`;
   }
 

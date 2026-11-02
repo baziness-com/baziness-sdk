@@ -7,14 +7,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Revenue (step 5): every real-money purchase that did <b>not</b> go through Baziness Pay (which
- * reports its own). Only the game server reports purchases, after verifying them with the store.
+ * Revenue (step 5): every real-money purchase, Baziness Pay checkouts included: Baziness counts what
+ * game servers report. Only the game server reports purchases, after verifying them (with the store,
+ * or {@link Pay#verify} for a Baziness Pay payment).
  */
 public final class Purchases {
     private static final Set<String> GATEWAYS = new HashSet<String>(
-            Arrays.asList("cafebazaar", "myket", "googleplay", "appstore", "direct"));
+            Arrays.asList("baziness_pay", "cafebazaar", "myket", "googleplay", "appstore", "direct"));
 
-    /** One purchase. Required: userId, amount, gateway, orderId; provider for {@code direct}. */
+    /**
+     * One purchase. Required: userId, amount, gateway, orderId; provider for {@code direct}. A Baziness Pay
+     * payment: gateway {@code baziness_pay}, orderId = the payment's token, provider = its bank
+     * ({@link Pay.Payment#gateway}) when you have it.
+     */
     public static final class Purchase {
         public final long userId;
         public final double amount;

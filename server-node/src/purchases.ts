@@ -9,9 +9,12 @@ export interface RecordPurchaseInput {
   /** `IRT` (Toman, default) or `IRR` (rial). */
   currency?: 'IRT' | 'IRR';
   gateway: PaymentGateway;
-  /** The payment company behind a `direct` checkout (zarinpal, idpay, …). Required for `direct`. */
+  /**
+   * The payment company behind a `direct` checkout (zarinpal, idpay, …), required for `direct`; for
+   * `baziness_pay`, the bank behind the checkout (`payment.gateway`) when you have it.
+   */
   provider?: string;
-  /** Store order id or purchase token. Makes the report idempotent: re-sending counts once. */
+  /** Store order id or purchase token (Baziness Pay: the payment's token). Makes the report idempotent: re-sending counts once. */
   orderId: string;
   sku?: string;
   occurredAt?: Date | string;
@@ -19,12 +22,12 @@ export interface RecordPurchaseInput {
   refunded?: boolean;
 }
 
-const GATEWAYS: ReadonlySet<string> = new Set(['cafebazaar', 'myket', 'googleplay', 'appstore', 'direct']);
+const GATEWAYS: ReadonlySet<string> = new Set(['baziness_pay', 'cafebazaar', 'myket', 'googleplay', 'appstore', 'direct']);
 
 /**
- * Revenue (step 5): every real-money purchase that did **not** go through Baziness Pay (which
- * reports its own). Only the game server reports purchases, after it has verified them with the
- * store; the device never does.
+ * Revenue (step 5): every real-money purchase, Baziness Pay checkouts included: Baziness counts what
+ * game servers report. Only the game server reports purchases, after it has verified them (with the
+ * store, or `pay.verify` for a Baziness Pay payment); the device never does.
  */
 export class Purchases {
   constructor(

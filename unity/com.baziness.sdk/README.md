@@ -9,7 +9,7 @@ your game server, which uses the Baziness server SDK (Node or Java).
 
 Package Manager → **Add package from git URL**:
 
-`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.5.0`
+`https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.6.0`
 
 That is all: the web view comes with it. The package bundles
 [gree unity-webview](https://github.com/gree/unity-webview) (zlib, see

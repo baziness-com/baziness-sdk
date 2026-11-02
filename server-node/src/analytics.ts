@@ -24,7 +24,7 @@ export interface AnalyticsOptions {
 export type PropValue = string | number | boolean | null | undefined;
 
 /** Where a purchase is paid: a store, your own gateway (`direct`), or Baziness Pay. */
-export type FunnelGateway = PaymentGateway | 'baziness_pay';
+export type FunnelGateway = PaymentGateway;
 
 /** Which ad was shown, as your ad network names it. */
 export interface AdPlacement {

@@ -26,7 +26,7 @@ This document explains how the SDKs fit together and how maintainers test and re
    │◄── 15-min access token ──────────│── v2/client/link-code ─────────────────► pages
    │── user/get-coin, events/batch, analytics/attribution/resolve ───────────────► hub
    │── open page ?linkCode= ────────────────────────────────────────────────────► baziness.com
-   │── open checkout /buy?…&bztoken=, get_payment ──────────────────────────────► Baziness Pay
+   │── open checkout /buy?…, get_payment ───────────────────────────────────────► Baziness Pay
                                       │── add-coin, record-purchase, server-events ► hub
                                       │── v2/client/attribution (the install's campaign) ► hub
                                       │── get_payment, verify_payment, consume ──► Baziness Pay
@@ -48,7 +48,8 @@ This document explains how the SDKs fit together and how maintainers test and re
   the device's fingerprint to a recent campaign link click (`matchType: 'probabilistic'`).
 - **Baziness Pay** (the web checkout): the device SDKs open the checkout page with the player's token
   and, when the player taps "Complete purchase", find the paid payment; the server SDKs verify its token
-  and consume it after the game granted it. Pay reports these payments itself.
+  and consume it after the game granted it, then report it like any purchase (`baziness_pay`): Baziness
+  counts what game servers report.
 - **One account across games**: pages are opened with one-time link codes; opening another game
   from a page hands over a link code, and the next game's `players.signIn({ linkCode })` joins the
   same Baziness person.
@@ -86,7 +87,7 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | `baziness-sdk-js-server-<version>.tgz`, `baziness-sdk-js-web-<version>.tgz` | GitHub Releases | npm package archives built by CI |
 | `baziness-sdk-java-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
 | `baziness-sdk-unity-<version>.tgz` | GitHub Releases | Unity package archive built by CI |
-| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.5.0` |
+| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.6.0` |
 
 Keep all five version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 

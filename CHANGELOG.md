@@ -6,6 +6,16 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-02
+
+- **Report Baziness Pay payments too**: Baziness counts what game servers report, so the server SDKs'
+  `purchases.record` accepts gateway `baziness_pay` (order id = the payment's token, provider = its bank
+  when you have it). Pay's own record no longer counts as the game's revenue. Java `Purchases`, Node
+  `PaymentGateway` (`FunnelGateway` is now the same type), docs.
+- **The checkout no longer carries the player's Baziness token** (`bztoken`): Pay doesn't need to know the
+  Baziness user any more. Unity `BazinessPay` and web `BazinessPay` constructors lose their token parameter
+  (`BazinessSdk.Pay` / `baziness.pay` are unchanged); `CheckoutUrl` / `checkoutUrl` keep their signatures.
+
 ## [1.5.0] - 2026-11-01
 
 - **Baziness Pay** in every SDK, for packages registered in Pay (the web checkout, `pay.baziness.com`).

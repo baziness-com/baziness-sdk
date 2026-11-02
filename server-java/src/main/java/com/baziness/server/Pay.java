@@ -5,8 +5,8 @@ import java.util.Map;
 
 /**
  * Baziness Pay: the web checkout ({@code pay.baziness.com}) for packages registered in Pay under your
- * app's package name. Pay reports these payments to Baziness itself: never {@code purchases().record}
- * them.
+ * app's package name. Report each payment you granted like any other: {@code purchases().record} with
+ * gateway {@code baziness_pay} and the payment's token as the order id.
  *
  * <p>The flow: the device opens the checkout page (device SDK {@code OpenCheckout}), the player pays and
  * comes back to the game, taps "Complete purchase", the device finds the payment and sends its token to
