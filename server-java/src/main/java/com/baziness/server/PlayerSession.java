@@ -6,9 +6,9 @@ public class PlayerSession {
     public final long userId;
     /** True once the player signed in with a phone number, false while anonymous. */
     public final boolean isLinkedToAccount;
-    /** 15-minute access token: the device uses it for its own Baziness calls. */
+    /** The player's token (long-lived): the device uses it for its own Baziness calls. */
     public final String accessToken;
-    /** ISO time the access token expires. */
+    /** ISO time the token expires (years away; the device asks your server again after it). */
     public final String accessTokenExpiresAt;
 
     PlayerSession(long userId, boolean isLinkedToAccount, String accessToken, String accessTokenExpiresAt) {

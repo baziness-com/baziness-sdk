@@ -187,7 +187,7 @@ namespace Baziness
             return sessions.Get(true);
         }
 
-        /// <summary>A valid 15-minute access token, renewed through your server when needed.</summary>
+        /// <summary>A valid player token, renewed through your server when needed.</summary>
         public static Task<string> GetTokenAsync()
         {
             RequireInitialized();

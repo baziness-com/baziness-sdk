@@ -57,7 +57,7 @@ export type TokenSource = (force: boolean) => Promise<string>;
 
 /**
  * Player analytics from the device: one method per event Baziness analytics knows (the purchase
- * funnel, ads, onboarding, levels, in-game currency), sent with the player's 15-minute token to
+ * funnel, ads, onboarding, levels, in-game currency), sent with the player's token to
  * `analytics/events/batch`. Queued in storage so a reload or going offline loses nothing; sent every
  * 30 s, at 100 events and when the page is hidden; retried with backoff on 429/5xx/offline.
  */

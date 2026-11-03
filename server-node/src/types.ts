@@ -103,9 +103,9 @@ export interface PlayerSession {
   userId: number;
   /** True once the player signed in with a phone number (a Baziness account), false while anonymous. */
   isLinkedToAccount: boolean;
-  /** 15-minute access token: the device uses it for its own Baziness calls. */
+  /** The player's token (long-lived): the device uses it for its own Baziness calls. */
   accessToken: string;
-  /** ISO time the access token expires. */
+  /** ISO time the token expires (years away; the device asks your server again after it). */
   accessTokenExpiresAt: string;
 }
 
@@ -115,37 +115,11 @@ export type SignInMethod =
   | 'created'
   /** The player arrived with a link code (from the Baziness app or another game): same person. */
   | 'link_code'
-  /** A known player got a fresh access token. */
-  | 'refresh'
-  /** Not produced since 1.1 (there are no player sessions to start); kept for compatibility. */
-  | 'new_session';
+  /** A known player got their token. */
+  | 'refresh';
 
 export interface SignInResult extends PlayerSession {
   method: SignInMethod;
   /** A link code was sent but had expired or was already used; the player continued without it. */
   linkCodeRejected: boolean;
-}
-
-/**
- * Where an integration from 1.0 kept each player's refresh token. Since 1.1 your server keeps no
- * token (its client secret gets a new access token whenever needed); if you still pass a store,
- * `players.logout` revokes and removes what is left in it, and nothing else uses it.
- */
-export interface RefreshTokenStore {
-  get(userId: number): Promise<string | null>;
-  set(userId: number, refreshToken: string | null): Promise<void>;
-}
-
-/** In-memory {@link RefreshTokenStore} for tests and local development. Lost on restart. */
-export class MemoryRefreshTokenStore implements RefreshTokenStore {
-  private readonly tokens = new Map<number, string>();
-
-  async get(userId: number): Promise<string | null> {
-    return this.tokens.get(userId) ?? null;
-  }
-
-  async set(userId: number, refreshToken: string | null): Promise<void> {
-    if (refreshToken) this.tokens.set(userId, refreshToken);
-    else this.tokens.delete(userId);
-  }
 }

@@ -27,7 +27,7 @@ namespace Baziness
     {
         public long UserId;
         public bool IsLinkedToAccount;
-        /// <summary>15-minute access token. Never a refresh token: that one stays on your server.</summary>
+        /// <summary>The player's token (long-lived), from your server's Players.signIn / session.</summary>
         public string AccessToken;
         public DateTime AccessTokenExpiresAtUtc;
         /// <summary>The server's session id, so device events are grouped with the server's session events.</summary>

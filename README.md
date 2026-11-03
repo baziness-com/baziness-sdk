@@ -21,9 +21,9 @@ This document explains how the SDKs fit together and how maintainers test and re
  ─────────────                      ───────────                         ────────
  @baziness/web | com.baziness.sdk   @baziness/server | baziness-server
    │ session / link-code / login ──►  │ client id + secret (secret never leaves)
-   │      (your own routes)           │── client/auth, v2/client/create-user ──► id
-   │                                  │── v2/client/access-token (nothing kept on the server)
-   │◄── 15-min access token ──────────│── v2/client/link-code ─────────────────► pages
+   │      (your own routes)           │── client/auth, client/create-user ─────► id
+   │                                  │── client/get-user-token (kept in memory only)
+   │◄── player token ─────────────────│── v2/client/link-code ─────────────────► pages
    │── user/get-coin, events/batch, analytics/attribution/resolve ───────────────► hub
    │── open page ?linkCode= ────────────────────────────────────────────────────► baziness.com
    │── open checkout /buy?…, get_payment ───────────────────────────────────────► Baziness Pay
@@ -34,10 +34,10 @@ This document explains how the SDKs fit together and how maintainers test and re
 
 - The **server SDK** owns everything secret or trusted: the client secret, coin grants, purchases,
   and the trusted analytics channel (`analytics/server-events/batch`), which is the only place
-  Baziness accepts sessions, device data, sign-ins and purchase completions from. It keeps no player
-  token: the client secret gets a new 15-minute access token for any of its players whenever needed.
+  Baziness accepts sessions, device data, sign-ins and purchase completions from. It stores no player
+  token: the client secret gets any of its players' (long-lived) tokens whenever needed.
 - The **device SDKs** never hold a secret. They ask the game's own server (four routes: `/session`,
-  `/link-code`, `/login`, `/logout`) and talk to Baziness only with the player's 15-minute token:
+  `/link-code`, `/login`, `/logout`) and talk to Baziness only with the player's token:
   coin balance, player analytics, Baziness pages.
 - **Analytics** has one method per event Baziness knows (the purchase funnel, ads, onboarding,
   levels, in-game currency), on the device SDKs and the server SDKs alike; there is no free-form
@@ -57,7 +57,7 @@ This document explains how the SDKs fit together and how maintainers test and re
 ## Tests
 
 Every SDK is tested against one shared fake of the platform API, [tools/fake-hub](tools/fake-hub)
-(Node, in-memory: access tokens, link codes joining persons, coin idempotency, server-only event
+(Node, in-memory: player tokens, link codes joining persons, coin idempotency, server-only event
 names, phone lookup, offers, referral rewards, campaign link clicks and fingerprint matching, Baziness Pay payments, injected failures). Needs Node 18+.
 
 ```bash
@@ -65,7 +65,7 @@ names, phone lookup, offers, referral rewards, campaign link clicks and fingerpr
 cd server-node && npm ci && npm test                 # 41 tests
 cd server-java && ./build.sh                          # 17 tests, Java 8 jar in out/
 cd web && npm ci && npm test && npm run build         # 13 tests, dist/ + dist/baziness.global.js
-cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 12 tests of the engine-free core (C# 9)
+cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 13 tests of the engine-free core (C# 9)
 ```
 
 The Unity package itself is compiled by opening any Unity 2021.3+ project that references it
@@ -87,7 +87,7 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | `baziness-sdk-js-server-<version>.tgz`, `baziness-sdk-js-web-<version>.tgz` | GitHub Releases | npm package archives built by CI |
 | `baziness-sdk-java-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
 | `baziness-sdk-unity-<version>.tgz` | GitHub Releases | Unity package archive built by CI |
-| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v1.7.1` |
+| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v2.0.0` |
 
 Keep all five version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 

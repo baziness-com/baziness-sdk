@@ -45,63 +45,60 @@ public final class BazinessServerTest {
                 Map<String, Object> value = Json.object(Json.parse("{\"a\":[1,2.5,true,null],\"b\":\"x\\\"\\u00e9\"}"));
                 equal(Json.write(value), "{\"a\":[1,2.5,true,null],\"b\":\"x\\\"é\"}");
             });
-            test("creates a player, then gets a new access token; the server keeps no token", () -> {
+            test("creates a player, then gets their long-lived token; the server stores none", () -> {
                 Attribution attribution = new Attribution();
                 attribution.utmSource = "instagram";
                 attribution.campaignCode = "spring";
-                SignInResult first = sdk(null).players().signIn(
+                SignInResult first = sdk().players().signIn(
                         new SignInRequest("phone-1", "Android", "CafeBazaar").attribution(attribution));
                 equal(first.method, SignInResult.Method.CREATED);
-                check(first.accessToken != null && first.accessTokenExpiresAt != null, "an access token");
-                equal(Json.number(Json.object(control("state", null)), "liveSessions"), 0L);
+                check(first.accessToken != null && first.accessTokenExpiresAt != null, "a token");
+                check(java.time.Instant.parse(first.accessTokenExpiresAt)
+                        .isAfter(java.time.Instant.now().plus(java.time.Duration.ofDays(365))), "a long-lived token");
                 Map<String, Object> user = Json.object(users().get(0));
                 equal(Json.write(user.get("attribution")), "{\"utmSource\":\"instagram\",\"linkCode\":\"spring\"}");
 
                 // A fresh SDK (another server, or after a restart) has no cached token: it asks again.
-                SignInResult second = sdk(null).players().signIn(
+                SignInResult second = sdk().players().signIn(
                         new SignInRequest("phone-1", "Android", "CafeBazaar").userId(first.userId));
                 equal(second.method, SignInResult.Method.REFRESH);
                 equal(second.userId, first.userId);
-                check(!second.accessToken.equals(first.accessToken), "a new access token");
-                equal(requests("/api/v2/client/access-token/"), 1);
-                equal(requests("/api/auth/refresh") + requests("/api/v2/client/get-user-token/"), 0);
+                equal(requests("/api/client/get-user-token/"), 1);
+                equal(requests("/api/auth/") + requests("/api/v2/client/create-user")
+                        + requests("/api/v2/client/access-token/"), 0);
             });
             test("joins a player arriving with a link code to the same person", () -> {
-                BazinessServer yatzy = sdk(new MemoryRefreshTokenStore(), 13, "fake-client-secret-13");
+                BazinessServer yatzy = sdk(13, "fake-client-secret-13");
                 SignInResult yatzyPlayer = yatzy.players().signIn(new SignInRequest("phone", "Android", "CafeBazaar"));
                 String code = Json.string(Json.object(control("link-code", "{\"userId\":" + yatzyPlayer.userId + "}")), "code");
-                SignInResult falPlayer = sdk(new MemoryRefreshTokenStore()).players().signIn(
+                SignInResult falPlayer = sdk().players().signIn(
                         new SignInRequest("browser", "Web", "Direct").linkCode(code));
                 equal(falPlayer.method, SignInResult.Method.LINK_CODE);
                 equal(accountOf(falPlayer.userId), accountOf(yatzyPlayer.userId));
                 check(accountOf(falPlayer.userId) != null, "joined into one account");
             });
             test("continues without a used link code", () -> {
-                SignInResult result = sdk(new MemoryRefreshTokenStore()).players().signIn(
+                SignInResult result = sdk().players().signIn(
                         new SignInRequest("d", "Web", "Direct").linkCode("lc.used"));
                 equal(result.method, SignInResult.Method.CREATED);
                 check(result.linkCodeRejected, "linkCodeRejected");
             });
-            test("logout ends the session a 1.0 store kept; suspended account is reported", () -> {
-                MemoryRefreshTokenStore store = new MemoryRefreshTokenStore();
-                BazinessServer baziness = sdk(store);
+            test("logout forgets the cached token; suspended account is reported", () -> {
+                BazinessServer baziness = sdk();
                 SignInResult player = baziness.players().signIn(new SignInRequest("d", "Web", "Direct"));
-                // What 1.0 did: a token pair, with the refresh token kept by the game.
-                store.set(player.userId, baziness.players().newSession(player.userId).refreshToken);
-                equal(Json.number(Json.object(control("state", null)), "liveSessions"), 1L);
                 baziness.players().logout(player.userId);
-                check(store.get(player.userId) == null, "refresh token removed");
-                equal(Json.number(Json.object(control("state", null)), "liveSessions"), 0L);
+                baziness.players().session(player.userId);
+                equal(requests("/api/client/get-user-token/"), 1);
                 control("suspend", "{\"userId\":" + player.userId + "}");
                 try {
-                    sdk(null).players().session(player.userId);
+                    sdk().players().session(player.userId);
                     check(false, "suspended account must throw");
                 } catch (BazinessException e) {
                     equal(e.code(), "account_suspended");
                 }
             });
             test("verifies a page token, gives link codes and logs out", () -> {
-                BazinessServer baziness = sdk(null);
+                BazinessServer baziness = sdk();
                 SignInResult player = baziness.players().signIn(new SignInRequest("d", "Web", "Direct"));
                 Players.VerifiedToken verified = baziness.players().verifyToken(player.accessToken);
                 check(verified.valid && verified.userId == player.userId, "page token verified");
@@ -113,19 +110,19 @@ public final class BazinessServerTest {
                         "after logout the next session asks the platform again");
             });
             test("finds a player by phone number and reads the player's offer", () -> {
-                BazinessServer baziness = sdk(null);
+                BazinessServer baziness = sdk();
                 long userId = baziness.players().signIn(new SignInRequest("d", "Android", "CafeBazaar")).userId;
                 equal(baziness.players().findByPhone("09121234567"), 0L);
                 control("phone-login", "{\"userId\":" + userId + ",\"phone\":\"09121234567\"}");
                 equal(baziness.players().findByPhone("09121234567"), userId);
-                equal(sdk(null, 13, "fake-client-secret-13").players().findByPhone("09121234567"), 0L);
+                equal(sdk(13, "fake-client-secret-13").players().findByPhone("09121234567"), 0L);
 
                 check(baziness.offers().get(42) == null, "no offer yet");
                 control("offer", "{\"playerId\":42,\"bundleId\":7}");
                 equal(baziness.offers().get(42), 7);
             });
             test("reads a player's campaign, matching a pending install by its fingerprint", () -> {
-                BazinessServer baziness = sdk(null);
+                BazinessServer baziness = sdk();
                 long userId = baziness.players().signIn(new SignInRequest("fp", "Android", "Direct")).userId;
                 equal(baziness.players().campaign(userId).status, "pending");
 
@@ -138,14 +135,14 @@ public final class BazinessServerTest {
                 equal(campaign.clickId, "c1");
                 equal(campaign.utmSource, "instagram");
                 try {
-                    sdk(null, 13, "fake-client-secret-13").players().campaign(userId);
+                    sdk(13, "fake-client-secret-13").players().campaign(userId);
                     check(false, "another game's player is refused");
                 } catch (BazinessException e) {
                     equal(e.status(), 403);
                 }
             });
             test("pays a grant once and re-authenticates after the client token expires", () -> {
-                BazinessServer baziness = sdk(new MemoryRefreshTokenStore());
+                BazinessServer baziness = sdk();
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;
                 Coins.AddResult paid = baziness.coins().add(userId, 50, "match:17", null);
                 equal(paid.credited, 50L);
@@ -159,7 +156,7 @@ public final class BazinessServerTest {
                 equal(baziness.coins().balance(userId), 50L);
             });
             test("a lost answer then a refused retry is already credited; an uncovered payout is refused", () -> {
-                BazinessServer baziness = sdk(null);
+                BazinessServer baziness = sdk();
                 long userId = baziness.players().signIn(new SignInRequest("d", "Android", "CafeBazaar")).userId;
                 control("drop-after-credit", "{\"times\":1}");
                 Coins.AddResult paid = baziness.coins().add(userId, 50, "match:17", null);
@@ -176,14 +173,14 @@ public final class BazinessServerTest {
                 equal(baziness.coins().balance(userId), 50L);
             });
             test("retries a 503 and a dropped connection on idempotent calls", () -> {
-                BazinessServer baziness = sdk(new MemoryRefreshTokenStore());
+                BazinessServer baziness = sdk();
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;
                 control("fail", "{\"path\":\"/api/client/get-coin/" + userId + "\",\"status\":503,\"times\":1}");
                 control("fail", "{\"path\":\"/api/client/get-coin/" + userId + "\",\"status\":0,\"times\":1}");
                 equal(baziness.coins().balance(userId), 0L);
             });
             test("records a purchase and sends sessions with device data through the trusted channel", () -> {
-                BazinessServer baziness = sdk(new MemoryRefreshTokenStore());
+                BazinessServer baziness = sdk();
                 long userId = baziness.players().signIn(new SignInRequest("d", "Android", "CafeBazaar")).userId;
                 DeviceInfo device = new DeviceInfo();
                 device.model = "Pixel 8";
@@ -204,7 +201,7 @@ public final class BazinessServerTest {
                 equal(keys.toString(), "[auth_login, session_start, device_info, level_complete, iap_purchase_completed, iap_purchase_completed, session_end]");
             });
             test("Baziness Pay: finds, verifies the token of and consumes a paid payment once", () -> {
-                Pay pay = sdk(null).pay("com.example.game");
+                Pay pay = sdk().pay("com.example.game");
                 check(pay.find(7, "gems_100") == null, "nothing paid yet");
                 String token = Json.string(Json.object(control("pay-payment", "{\"uid\":7,\"sku\":\"gems_100\"}")), "token");
                 Pay.Payment payment = pay.find(7, "gems_100");
@@ -218,7 +215,7 @@ public final class BazinessServerTest {
                 check(!pay.verify(7, "gems_100", token), "consumed");
             });
             test("Baziness Pay: the bank checks a payment it did not report back; a lost consume answer still counts", () -> {
-                Pay pay = sdk(null).pay("com.example.game");
+                Pay pay = sdk().pay("com.example.game");
                 String token = Json.string(Json.object(control("pay-payment",
                         "{\"uid\":7,\"sku\":\"gems_100\",\"status\":\"ready\"}")), "token");
                 check(!pay.verify(7, "gems_100", "other"), "not another token");
@@ -226,7 +223,7 @@ public final class BazinessServerTest {
                 control("drop-after-consume", "{\"times\":1}");
                 check(pay.consume(7, "gems_100"), "consumed though the answer was lost");
                 try {
-                    sdk(null).pay("com.unknown.game").find(7, "gems_100");
+                    sdk().pay("com.unknown.game").find(7, "gems_100");
                     throw new AssertionError("expected an exception");
                 } catch (BazinessException e) {
                     equal(e.code(), "no_required_params");
@@ -237,7 +234,7 @@ public final class BazinessServerTest {
                 HttpOptions http = new HttpOptions();
                 http.maxAttempts = 1;
                 http.breakerThreshold = 0;
-                BazinessServer baziness = sdk(new MemoryRefreshTokenStore(), 12, "fake-client-secret-12", http);
+                BazinessServer baziness = sdk(12, "fake-client-secret-12", http);
                 long userId = baziness.players().signIn(new SignInRequest("d", "Web", "Direct")).userId;
                 control("fail", "{\"path\":\"/api/analytics/server-events/batch\",\"status\":503,\"times\":1}");
                 baziness.analytics().tutorialComplete(userId, null);
@@ -268,21 +265,21 @@ public final class BazinessServerTest {
         return count;
     }
 
-    private static BazinessServer sdk(RefreshTokenStore store) {
-        return sdk(store, 12, "fake-client-secret-12");
+    private static BazinessServer sdk() {
+        return sdk(12, "fake-client-secret-12");
     }
 
-    private static BazinessServer sdk(RefreshTokenStore store, long clientId, String secret) {
+    private static BazinessServer sdk(long clientId, String secret) {
         HttpOptions http = new HttpOptions();
         http.retryBaseMs = 10;
-        return sdk(store, clientId, secret, http);
+        return sdk(clientId, secret, http);
     }
 
-    private static BazinessServer sdk(RefreshTokenStore store, long clientId, String secret, HttpOptions http) {
+    private static BazinessServer sdk(long clientId, String secret, HttpOptions http) {
         AnalyticsOptions analytics = new AnalyticsOptions();
         analytics.flushIntervalMs = 60000;
         return BazinessServer.builder(Environment.STAGING, clientId, secret)
-                .apiBaseUrl(apiBase).payBaseUrl(payBase).refreshTokens(store).http(http).analytics(analytics)
+                .apiBaseUrl(apiBase).payBaseUrl(payBase).http(http).analytics(analytics)
                 .logger(BazinessLogger.SILENT).build();
     }
 

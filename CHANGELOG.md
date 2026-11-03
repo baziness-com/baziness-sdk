@@ -6,6 +6,28 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-03
+
+Players get **long-lived tokens** again; there are no refresh tokens and no 15-minute access tokens
+for game servers any more. The platform withdrew `v2/client/create-user`, `v2/client/access-token`,
+`v2/client/get-user-token`, `auth/refresh` and `auth/logout`, so **every earlier SDK version stops
+signing players in**: update to 2.0.0 before the platform release.
+
+- Server SDKs: `players.signIn` / `players.session` use `client/create-user` and
+  `client/get-user-token/{id}` and keep each player's token in memory. `PlayerSession` keeps its shape:
+  `accessToken` is the player's token, `accessTokenExpiresAt` its own expiry (years away).
+- Link codes are unchanged: `players.linkCode` for Baziness pages, `linkCode` in `signIn` to join
+  the person who arrived with one. A page opened with a link code still acts as your player with a
+  short-lived token of its own; only the page holds it.
+- Removed: the `refreshTokens` option and `RefreshTokenStore` / `MemoryRefreshTokenStore`, and the
+  low-level `accessToken`, `newSession`, `refresh` and `revoke` (Node, Java). Low-level calls are now
+  `players.create(...)` and `players.token(userId)`. Refresh-token error codes are gone
+  (`ErrorCodes.refreshToken*`, `BazinessException.REFRESH_TOKEN_ROTATED`); `SignInMethod` no longer
+  lists `new_session`.
+- Device SDKs (web, Unity): no API change. Your server's session route answers what `players.signIn`
+  returns; with a long-lived token the device renews only on a 401.
+- Fake hub: long-lived player tokens from `client/create-user` and `client/get-user-token`.
+
 ## [1.7.1] - 2026-11-02
 
 - **Unity: pages open on a sheet, like the web SDK's**: the game stays in view above it, blurred and

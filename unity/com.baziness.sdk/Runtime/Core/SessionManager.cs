@@ -4,9 +4,9 @@ using System.Threading.Tasks;
 namespace Baziness
 {
     /// <summary>
-    /// The player's Baziness session on the device: a 15-minute access token from your server, renewed
+    /// The player's Baziness session on the device: the player's token from your server, renewed
     /// through your server when it is about to expire or a call answers 401. Never stored on the device:
-    /// your server keeps the refresh token.
+    /// a restart asks your server again.
     /// </summary>
     public sealed class SessionManager
     {

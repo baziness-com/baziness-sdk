@@ -52,13 +52,15 @@ async function gameServer(platform = 'Web') {
   const backend: GameBackend = {
     async session(request) {
       calls.push(`session:${request.linkCode ?? '-'}`);
-      const answer = await (await fetch(`${hub.apiBase}/v2/client/create-user`, {
+      const answer = await (await fetch(`${hub.apiBase}/client/create-user`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ deviceId: request.device.deviceId, platform, store: 'Direct', linkCode: request.linkCode }),
-      })).json() as { userId: number; isLinkedToAccount: boolean; tokens: { accessToken: string; accessTokenExpiresAt: string } };
+      })).json() as { userId: number; isLinkedToAccount: boolean; token: string };
       userId = answer.userId;
-      return { userId, isLinkedToAccount: answer.isLinkedToAccount, accessToken: answer.tokens.accessToken, accessTokenExpiresAt: answer.tokens.accessTokenExpiresAt };
+      // What @baziness/server hands the device: the player's long-lived token and its expiry.
+      const accessTokenExpiresAt = new Date(Date.now() + 3650 * 86_400_000).toISOString();
+      return { userId, isLinkedToAccount: answer.isLinkedToAccount, accessToken: answer.token, accessTokenExpiresAt };
     },
     async linkCode() {
       const answer = await (await fetch(`${hub.apiBase}/v2/client/link-code/${userId}`, { method: 'POST', headers })).json() as { code: string };

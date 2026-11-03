@@ -8,10 +8,8 @@ public final class SignInResult extends PlayerSession {
         CREATED("created"),
         /** The player arrived with a link code (from the Baziness app or another game): same person. */
         LINK_CODE("link_code"),
-        /** A known player got a fresh access token. */
-        REFRESH("refresh"),
-        /** Not produced since 1.1 (there are no player sessions to start); kept for compatibility. */
-        NEW_SESSION("new_session");
+        /** A known player got their token. */
+        REFRESH("refresh");
 
         public final String wireName;
 

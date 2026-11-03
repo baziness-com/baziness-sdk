@@ -6,7 +6,6 @@ import { silentLogger, Transport, type FetchLike, type HttpOptions, type Logger 
 import { Pay } from './pay.js';
 import { Players } from './players.js';
 import { Purchases } from './purchases.js';
-import type { RefreshTokenStore } from './types.js';
 import type { WireOffer } from './wire.js';
 
 export const SDK_VERSION = '1.5.0';
@@ -18,11 +17,6 @@ export interface BazinessServerOptions {
   clientId: number;
   /** Client secret of this environment. **Server only**: never in a client build, a log or git. */
   clientSecret: string;
-  /**
-   * Not needed since 1.1: your server keeps no player token. Pass the store of a 1.0 integration
-   * and `players.logout` ends the sessions left in it.
-   */
-  refreshTokens?: RefreshTokenStore;
   /** Override the API root (a local platform stack, for example). */
   apiBaseUrl?: string;
   /** Override the Baziness Pay root (a local Pay, or the Pay address your game already uses). */
@@ -90,7 +84,7 @@ export class BazinessServer {
     transport.useClientToken((deadlineAt, forceNew) => clientAuth.get(deadlineAt, forceNew));
 
     this.analytics = new ServerAnalytics(transport, logger, options.analytics);
-    this.players = new Players(transport, options.refreshTokens, this.analytics, logger);
+    this.players = new Players(transport, this.analytics, logger);
     this.coins = new Coins(transport);
     this.purchases = new Purchases(transport, this.analytics);
     this.quests = new Quests(transport);

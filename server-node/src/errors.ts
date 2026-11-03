@@ -26,11 +26,6 @@ export class BazinessError extends Error {
 export const ErrorCodes = Object.freeze({
   invalidLinkCode: 'invalid_link_code',
   accountSuspended: 'account_suspended',
-  refreshTokenRotated: 'refresh_token_rotated',
-  sessionRevoked: 'session_revoked',
-  refreshTokenExpired: 'refresh_token_expired',
-  invalidRefreshToken: 'invalid_refresh_token',
-  refreshTokenReused: 'refresh_token_reused',
   /**
    * `coins.add`: the platform refused the payout. Your game's coin wallet may be short of coins, or
    * this transaction id was already paid by an earlier call (the platform does not say which).

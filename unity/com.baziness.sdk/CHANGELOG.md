@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0 — 2026-11-03
+
+- No API change. Players' tokens from your server are long-lived again (the platform withdrew
+  refresh tokens and 15-minute access tokens), so the session renews only when a call answers 401.
+  Update your server SDK to 2.0.0 as well: earlier versions can no longer sign players in.
+
 ## 1.5.0 — 2026-11-01
 
 - Baziness Pay, the web checkout: `BazinessSdk.OpenCheckoutAsync(sku, playerId)` opens the checkout page

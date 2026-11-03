@@ -26,7 +26,7 @@ namespace Baziness
 
     /// <summary>
     /// Player analytics from the device: one method per event Baziness analytics knows (the purchase
-    /// funnel, ads, onboarding, levels, in-game currency), sent with the player's 15-minute token to
+    /// funnel, ads, onboarding, levels, in-game currency), sent with the player's token to
     /// <c>analytics/events/batch</c>. Queued in storage so a crash or going offline loses
     /// nothing; sent every 30 s, at 100 events and when the app goes to the background (call
     /// <see cref="Tick"/> regularly and <see cref="Flush"/> on pause); retried with backoff.

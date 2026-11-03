@@ -6,9 +6,9 @@ import type { LaunchParams } from './launch.js';
 const RENEW_BEFORE_MS = 60_000;
 
 /**
- * The player's Baziness session on the device: a 15-minute access token from your server, renewed
+ * The player's Baziness session on the device: the player's token from your server, renewed
  * through your server when it is about to expire or a call answers 401. Never stored: a reload asks
- * your server again, which keeps the refresh token.
+ * your server again.
  */
 export class SessionManager {
   private current: BackendSession | null = null;

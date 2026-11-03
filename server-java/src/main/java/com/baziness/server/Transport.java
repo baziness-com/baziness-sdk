@@ -213,7 +213,6 @@ final class Transport {
                 // Client-token calls are streamed: the JDK silently sends a buffered POST again when
                 // the connection drops before the answer, unseen by the retries here (a second user,
                 // a payout reported as refused). Their 401 needs no body: it only means sign in again.
-                // The refresh-token calls stay buffered for their 401 codes (refresh_token_rotated, …).
                 if (call.clientAuth || call.streamed) {
                     connection.setFixedLengthStreamingMode(payload.length);
                 }

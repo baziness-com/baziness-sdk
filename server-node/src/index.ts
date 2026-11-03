@@ -10,7 +10,6 @@ export type {
   AccountData,
   CreatePlayerInput,
   LinkCode,
-  SessionWithRefreshToken,
   SignInInput,
   VerifiedToken,
 } from './players.js';
@@ -22,7 +21,6 @@ export { Purchases } from './purchases.js';
 export type { RecordPurchaseInput } from './purchases.js';
 export { EVENT_NAME_PATTERN, ServerAnalytics, SessionTracker, deviceProps, stableEventId } from './analytics.js';
 export type { AdPlacement, AnalyticsOptions, FunnelGateway, PropValue, SessionStartOptions } from './analytics.js';
-export { MemoryRefreshTokenStore } from './types.js';
 export type {
   Attribution,
   Campaign,
@@ -31,7 +29,6 @@ export type {
   PaymentGateway,
   Platform,
   PlayerSession,
-  RefreshTokenStore,
   SignInMethod,
   SignInResult,
   Store,

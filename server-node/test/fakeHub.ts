@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { BazinessServer, MemoryRefreshTokenStore, type BazinessServerOptions } from '../src/index.js';
+import { BazinessServer, type BazinessServerOptions } from '../src/index.js';
 
 export interface FakeHub {
   port: number;
@@ -37,11 +37,10 @@ export interface HubState {
   payments: Array<{ pname: string; uid: number; sku: string; token: string; status: string }>;
   coins: Record<string, number>;
   requests: Array<{ method: string; path: string }>;
-  liveSessions: number;
   fingerprints: Array<{ userId: number; via: 'device' | 'server'; ip?: string; userAgent?: string; deviceModel?: string; osVersion?: string }>;
 }
 
-/** An SDK on the fake hub. No refresh-token store, as since 1.1; pass `refreshTokens` to test a 1.0 integration. */
+/** An SDK on the fake hub. */
 export function sdk(hub: FakeHub, overrides: Partial<BazinessServerOptions> = {}) {
   const baziness = new BazinessServer({
     environment: 'staging',
@@ -55,4 +54,3 @@ export function sdk(hub: FakeHub, overrides: Partial<BazinessServerOptions> = {}
   return { baziness };
 }
 
-export { MemoryRefreshTokenStore };

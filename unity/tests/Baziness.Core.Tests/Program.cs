@@ -257,16 +257,17 @@ internal static class Program
         public async Task<BackendSession> Session(SessionRequest request)
         {
             Calls.Add("session:" + (request.LinkCode ?? "-"));
-            var answer = await Post("/v2/client/create-user", MiniJson.Serialize(new Dictionary<string, object>
+            var answer = await Post("/client/create-user", MiniJson.Serialize(new Dictionary<string, object>
             {
                 ["deviceId"] = request.Device.deviceId, ["platform"] = "Android", ["store"] = "CafeBazaar", ["linkCode"] = request.LinkCode
             }), clientToken);
-            var tokens = MiniJson.Object(answer["tokens"]);
             userId = MiniJson.Long(answer, "userId");
+            // What the server SDKs hand the device: the player's long-lived token and its expiry.
             return BackendSession.FromDictionary(new Dictionary<string, object>
             {
                 ["userId"] = answer["userId"], ["isLinkedToAccount"] = answer["isLinkedToAccount"],
-                ["accessToken"] = tokens["accessToken"], ["accessTokenExpiresAt"] = tokens["accessTokenExpiresAt"]
+                ["accessToken"] = answer["token"],
+                ["accessTokenExpiresAt"] = DateTime.UtcNow.AddYears(10).ToString("o", System.Globalization.CultureInfo.InvariantCulture)
             });
         }
 

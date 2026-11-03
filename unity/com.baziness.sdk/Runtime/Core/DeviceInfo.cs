@@ -51,6 +51,6 @@ namespace Baziness
 
     public static class BazinessSdkInfo
     {
-        public const string Version = "1.7.1";
+        public const string Version = "2.0.0";
     }
 }

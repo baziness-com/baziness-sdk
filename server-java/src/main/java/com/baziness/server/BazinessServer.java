@@ -12,7 +12,7 @@ import java.util.Map;
  * </pre>
  */
 public final class BazinessServer {
-    public static final String SDK_VERSION = "1.7.1";
+    public static final String SDK_VERSION = "2.0.0";
 
     private final Environment environment;
     private final String apiBase;
@@ -36,7 +36,7 @@ public final class BazinessServer {
         Transport transport = new Transport(apiBase, builder.http, builder.logger);
         transport.useClientToken(new ClientAuth(transport, builder.clientId, builder.clientSecret));
         this.analytics = new ServerAnalytics(transport, builder.logger, builder.analytics);
-        this.players = new Players(transport, builder.refreshTokens, analytics, builder.logger);
+        this.players = new Players(transport, analytics, builder.logger);
         this.coins = new Coins(transport);
         this.purchases = new Purchases(transport, analytics);
         this.quests = new Quests(transport);
@@ -126,7 +126,6 @@ public final class BazinessServer {
         private final Environment environment;
         private final long clientId;
         private final String clientSecret;
-        private RefreshTokenStore refreshTokens;
         private String apiBaseUrl;
         private String payBaseUrl;
         private HttpOptions http = new HttpOptions();
@@ -146,15 +145,6 @@ public final class BazinessServer {
             this.environment = environment;
             this.clientId = clientId;
             this.clientSecret = clientSecret;
-        }
-
-        /**
-         * Not needed since 1.1: your server keeps no player token. Pass the store of a 1.0 integration
-         * and {@code players().logout} ends the sessions left in it.
-         */
-        public Builder refreshTokens(RefreshTokenStore store) {
-            this.refreshTokens = store;
-            return this;
         }
 
         /** Override the API root (a local platform stack, for example). */

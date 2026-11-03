@@ -14,7 +14,7 @@ export interface SessionRequest {
 export interface BackendSession {
   userId: number;
   isLinkedToAccount: boolean;
-  /** 15-minute access token. Never a refresh token: that one stays on your server. */
+  /** The player's token (long-lived), from your server's `players.signIn` / `players.session`. */
   accessToken: string;
   accessTokenExpiresAt: string;
   /** The server's session id, so device events are grouped with the server's session events. */

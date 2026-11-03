@@ -5,18 +5,18 @@ Yatzy's, and any other JVM server. Same API and behaviour as `@baziness/server`.
 
 ## Install
 
-Download `baziness-sdk-java-1.7.1.jar` from the
-[v1.7.1 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v1.7.1) and add
+Download `baziness-sdk-java-2.0.0.jar` from the
+[v2.0.0 GitHub release](https://github.com/baziness-com/baziness-sdk/releases/tag/v2.0.0) and add
 it to your server's classpath. The JAR has no runtime dependencies and targets Java 8.
 
 ```bash
-javac -cp baziness-sdk-java-1.7.1.jar YourGameServer.java
+javac -cp baziness-sdk-java-2.0.0.jar YourGameServer.java
 ```
 
 ## Quick start
 
 ```java
-// No player token to store: the client secret gets a new access token whenever one is needed.
+// No player token to store: the client secret gets any player's token whenever one is needed.
 BazinessServer baziness = BazinessServer.fromEnv(System.getenv()).build();
 
 SignInResult session = baziness.players().signIn(
@@ -68,5 +68,5 @@ Report each payment you granted like any other purchase: `purchases().record` wi
 `BAZINESS_PAY_BASE_URL` (or `Builder.payBaseUrl`) overrides the environment's Pay address.
 
 ```bash
-./build.sh           # javac --release 8 → out/baziness-server-1.7.1.jar, then 17 tests (needs Node for the fake platform)
+./build.sh           # javac --release 8 → out/baziness-server-2.0.0.jar, then 17 tests (needs Node for the fake platform)
 ```

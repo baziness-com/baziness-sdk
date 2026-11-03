@@ -8,35 +8,10 @@ export interface ClientAuthResponse {
   token: string;
 }
 
-export interface WireTokenPair {
-  accessToken: string;
-  accessTokenExpiresAt: string;
-  refreshToken: string;
-  refreshTokenExpiresAt: string;
-}
-
-/** `v2/client/create-user` and `v2/client/get-user-token/{id}`. */
-export interface WireUserSession {
+/** `client/create-user` and `client/get-user-token/{id}`: the player and their long-lived token. */
+export interface WireUserAuth {
   userId: number;
   token: string;
-  isLinkedToAccount: boolean;
-  tokens: WireTokenPair;
-}
-
-/**
- * `v2/client/access-token/{id}` and `v2/client/create-user` with `accessTokenOnly`: an access
- * token alone, no refresh token.
- */
-export interface WireAccessTokenSession {
-  userId: number;
-  token: string;
-  isLinkedToAccount: boolean;
-  accessTokenExpiresAt: string;
-}
-
-/** `auth/refresh`. */
-export interface WireRefreshResponse extends WireTokenPair {
-  userId: number;
   isLinkedToAccount: boolean;
 }
 

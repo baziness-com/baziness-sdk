@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // An in-memory stand-in for the Baziness platform API, implementing the contract the SDKs are
-// written against (client auth, v2 users with access tokens alone or with refresh-token rotation,
-// link codes, coins, purchases, analytics) and Baziness Pay's game-facing calls (under /pay). Every
+// written against (client auth, users with long-lived tokens, link codes, coins, purchases,
+// analytics) and Baziness Pay's game-facing calls (under /pay). Every
 // SDK's tests run against it, so they all agree on one behaviour.
 //
 //   node fake-hub.mjs [port]          → prints "fake-hub listening on <port>"
@@ -23,9 +23,8 @@ const CLIENTS = new Map([
   [13, { secret: 'fake-client-secret-13', name: 'other-game' }],
 ]);
 const HUB_CLIENT_ID = 4;
-const ACCESS_TOKEN_MS = 15 * 60_000;
-const REFRESH_TOKEN_MS = 30 * 86_400_000;
-const ROTATION_GRACE_MS = 30_000;
+// Player tokens are long-lived, like the platform's (10 years).
+const USER_TOKEN_MS = 3650 * 86_400_000;
 const SERVER_ONLY = new Set(['session_start', 'session_heartbeat', 'session_end', 'device_info', 'iap_purchase_completed', 'auth_login']);
 const EVENT_NAME = /^[a-z0-9_:.-]{1,128}$/;
 // Apps registered in the fake Baziness Pay (its `pname`); any other answers `no_required_params`, like Pay.
@@ -38,9 +37,7 @@ function freshState() {
     accounts: new Map(), // accountId → { accountId, phone|null }
     users: new Map(), // userId → { userId, clientId, deviceId, platform, store, accountId|null, attribution }
     clientTokens: new Map(), // token → clientId
-    accessTokens: new Map(), // token → { userId, expiresAt }
-    sessions: new Map(), // sessionId → { userId, current, previous, rotatedAt, revoked, expiresAt }
-    refreshIndex: new Map(), // refresh token → sessionId
+    userTokens: new Map(), // token → { userId, expiresAt }
     linkCodes: new Map(), // code → { userId, expiresAt, consumed, targetClientId }
     coins: new Map(), // userId → balance
     credited: new Set(), // transactionIds
@@ -70,42 +67,12 @@ function jwt(claims) {
   return `${part({ alg: 'HS256', typ: 'JWT' })}.${part(claims)}.${randomBytes(16).toString('base64url')}`;
 }
 
-function issuePair(userId) {
-  const accessToken = jwt({ sub: String(userId), role: 'user', token_use: 'access', exp: Math.floor((Date.now() + ACCESS_TOKEN_MS) / 1000) });
-  state.accessTokens.set(accessToken, { userId, expiresAt: Date.now() + ACCESS_TOKEN_MS });
-  const refreshToken = token('rt1');
-  const sessionId = token('s');
-  state.sessions.set(sessionId, { userId, current: refreshToken, previous: null, rotatedAt: 0, revoked: false, expiresAt: Date.now() + REFRESH_TOKEN_MS });
-  state.refreshIndex.set(refreshToken, sessionId);
-  return pairBody(accessToken, refreshToken);
-}
-
-function pairBody(accessToken, refreshToken) {
-  return {
-    accessToken,
-    accessTokenExpiresAt: new Date(state.accessTokens.get(accessToken).expiresAt).toISOString(),
-    refreshToken,
-    refreshTokenExpiresAt: new Date(Date.now() + REFRESH_TOKEN_MS).toISOString(),
-  };
-}
-
+// client/create-user and client/get-user-token: the player's long-lived token.
 function userSession(user) {
-  const tokens = issuePair(user.userId);
-  return { userId: user.userId, token: tokens.accessToken, isLinkedToAccount: isLinked(user), tokens };
-}
-
-// An access token alone (v2/client/access-token, create-user with accessTokenOnly): no session,
-// no refresh token. Game servers ask again with their client secret.
-function accessOnlySession(user) {
-  const expiresAt = Date.now() + ACCESS_TOKEN_MS;
-  const accessToken = jwt({ sub: String(user.userId), role: 'user', token_use: 'access', exp: Math.floor(expiresAt / 1000) });
-  state.accessTokens.set(accessToken, { userId: user.userId, expiresAt });
-  return {
-    userId: user.userId,
-    token: accessToken,
-    isLinkedToAccount: isLinked(user),
-    accessTokenExpiresAt: new Date(expiresAt).toISOString(),
-  };
+  const expiresAt = Date.now() + USER_TOKEN_MS;
+  const userToken = jwt({ sub: String(user.userId), role: 'user', exp: Math.floor(expiresAt / 1000) });
+  state.userTokens.set(userToken, { userId: user.userId, expiresAt });
+  return { userId: user.userId, token: userToken, isLinkedToAccount: isLinked(user) };
 }
 
 const isLinked = (user) => user.accountId !== null && state.accounts.get(user.accountId)?.phone != null;
@@ -173,9 +140,9 @@ function clientOf(req) {
 }
 
 function userOfToken(value) {
-  const access = state.accessTokens.get(value);
-  if (!access || access.expiresAt < Date.now()) return null;
-  return state.users.get(access.userId) ?? null;
+  const entry = state.userTokens.get(value);
+  if (!entry || entry.expiresAt < Date.now()) return null;
+  return state.users.get(entry.userId) ?? null;
 }
 
 async function readBody(req) {
@@ -226,29 +193,6 @@ function createUser(clientId, body) {
   };
   state.users.set(user.userId, user);
   return { user };
-}
-
-function refresh(body) {
-  const sessionId = state.refreshIndex.get(body.refreshToken ?? '');
-  const session = sessionId ? state.sessions.get(sessionId) : null;
-  if (!session) return { status: 401, error: 'invalid_refresh_token' };
-  if (session.revoked) return { status: 401, error: 'session_revoked' };
-  if (session.expiresAt < Date.now()) return { status: 401, error: 'refresh_token_expired' };
-  if (body.refreshToken === session.previous) {
-    if (Date.now() - session.rotatedAt <= ROTATION_GRACE_MS) return { status: 401, error: 'refresh_token_rotated' };
-    session.revoked = true;
-    return { status: 401, error: 'refresh_token_reused' };
-  }
-  const user = state.users.get(session.userId);
-  if (user?.suspended) return { status: 403, error: 'account_suspended' };
-  const next = token('rt1');
-  session.previous = session.current;
-  session.current = next;
-  session.rotatedAt = Date.now();
-  state.refreshIndex.set(next, sessionId);
-  const accessToken = jwt({ sub: String(session.userId), role: 'user', token_use: 'access', exp: Math.floor((Date.now() + ACCESS_TOKEN_MS) / 1000) });
-  state.accessTokens.set(accessToken, { userId: session.userId, expiresAt: Date.now() + ACCESS_TOKEN_MS });
-  return { status: 200, body: { userId: session.userId, isLinkedToAccount: isLinked(user), ...pairBody(accessToken, next) } };
 }
 
 function ingest(events, source) {
@@ -354,7 +298,6 @@ async function handle(req, res) {
       payments: state.payments,
       coins: Object.fromEntries(state.coins),
       requests: state.requests,
-      liveSessions: [...state.sessions.values()].filter((s) => !s.revoked).length,
     });
   }
 
@@ -375,15 +318,6 @@ async function handle(req, res) {
     const value = jwt({ sub: String(body.clientId), role: 'client', exp: Math.floor((Date.now() + 3_600_000) / 1000) });
     state.clientTokens.set(value, body.clientId);
     return sendJson(res, 200, { clientId: body.clientId, token: value });
-  }
-  if (path === '/api/auth/refresh' && req.method === 'POST') {
-    const result = refresh(body);
-    return result.status === 200 ? sendJson(res, 200, result.body) : fail(res, result.status, result.error);
-  }
-  if (path === '/api/auth/logout' && req.method === 'POST') {
-    const sessionId = state.refreshIndex.get(body.refreshToken ?? '');
-    if (sessionId) state.sessions.get(sessionId).revoked = true;
-    return sendJson(res, 200, undefined);
   }
 
   // ── user token ──
@@ -437,11 +371,11 @@ async function handle(req, res) {
     return user && user.clientId === clientId ? user : null;
   };
 
-  if (path === '/api/v2/client/create-user' && req.method === 'POST') {
+  if (path === '/api/client/create-user' && req.method === 'POST') {
     if (!body.deviceId) return fail(res, 400, 'deviceId is required');
     const result = createUser(clientId, body);
     if (result.error) return fail(res, 400, result.error);
-    return sendJson(res, 200, body.accessTokenOnly ? accessOnlySession(result.user) : userSession(result.user));
+    return sendJson(res, 200, userSession(result.user));
   }
   let match = path.match(/^\/api\/v2\/client\/attribution\/(\d+)$/);
   if (match && req.method === 'POST') {
@@ -454,15 +388,8 @@ async function handle(req, res) {
     }
     return sendJson(res, 200, campaignOf(user));
   }
-  match = path.match(/^\/api\/v2\/client\/access-token\/(\d+)$/);
-  if (match && req.method === 'POST') {
-    const user = ownUser(match[1]);
-    if (!user) return fail(res, 403, 'access denied');
-    if (user.suspended) return fail(res, 403, 'account_suspended');
-    return sendJson(res, 200, accessOnlySession(user));
-  }
-  match = path.match(/^\/api\/v2\/client\/get-user-token\/(\d+)$/);
-  if (match && req.method === 'POST') {
+  match = path.match(/^\/api\/client\/get-user-token\/(\d+)$/);
+  if (match && req.method === 'GET') {
     const user = ownUser(match[1]);
     if (!user) return fail(res, 403, 'access denied');
     if (user.suspended) return fail(res, 403, 'account_suspended');

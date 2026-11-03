@@ -154,7 +154,7 @@ export class BazinessWeb {
     return this.sessions.session;
   }
 
-  /** A valid 15-minute access token (renewed through your server when needed). */
+  /** A valid player token (renewed through your server when needed). */
   token(): Promise<string> {
     return this.sessions.token();
   }
