@@ -6,6 +6,15 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-11-03
+
+- **Web: pages open on a sheet with a handle, like Unity's**: the game stays in view above the sheet, blurred
+  and shaded (`topGap`, `shade`, `blurGame`), where it used to stop 12 px short of the top with no handle. A handle
+  tops the sheet: tapping it or the game closes the page, as does dragging it down, with a mouse or a finger
+  (dragged a little, it springs back: `dragToClose`). `handleStripHeight`, `handleSize`, `handleColor`,
+  `cornerRadius` and `backdrop` style it, all under the `overlay` option. It is at most 560 px wide (was 640).
+- No change in the other SDKs: they share one version.
+
 ## [2.1.0] - 2026-11-03
 
 - **.NET server SDK**: `Baziness.Server` on NuGet (.NET 8 or newer, no dependencies), with the same API and

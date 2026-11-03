@@ -87,15 +87,51 @@ export interface OverlayOptions {
   zIndex?: number;
   /** Show the fallback close button after this long if the page has not loaded. Default 3000 ms. */
   closeButtonAfterMs?: number;
+  /** The game left in view above the sheet, as a part of the screen height. Default 0.08. */
+  topGap?: number;
+  /** Over the game, above the sheet. Default `rgba(8,6,4,.5)`. */
+  shade?: string;
+  /** The game shows blurred above the sheet. Default true. */
+  blurGame?: boolean;
+  /** The sheet behind the page while it loads and slides in, and behind the handle. Default white. */
+  backdrop?: string;
+  /** The sheet's top corners, in pixels. Default 22. */
+  cornerRadius?: number;
+  /** The top of the sheet with the handle, in pixels: tap it to close, or drag it down. Default 26. */
+  handleStripHeight?: number;
+  /** Default 44 × 5 pixels. */
+  handleSize?: { width: number; height: number };
+  /** Default `rgba(0,0,0,.22)`. */
+  handleColor?: string;
+  /**
+   * Dragged further down than this part of the sheet (150 pixels at most), it closes when let go; less,
+   * it springs back. Default 0.28.
+   */
+  dragToClose?: number;
+}
+
+const SLIDE_MS = 320;
+const SLIDE_EASING = 'cubic-bezier(.22,.61,.36,1)';
+const MAX_DRAG_TO_CLOSE_PX = 150;
+/** A press on the handle that moves less than this is a tap. */
+const TAP_PX = 6;
+
+/** Whether letting go of the handle closes the sheet; otherwise it springs back. */
+export function dragCloses(dragged: number, sheetHeight: number, dragToClose: number): boolean {
+  return dragged > Math.min(MAX_DRAG_TO_CLOSE_PX, sheetHeight * dragToClose);
 }
 
 /**
- * The in-game view of a page: a full-height sheet that slides up over the game, with an iframe in
- * it. Only one is open at a time. The page closes it with its own close message; a fallback close
- * button appears if the page does not load.
+ * The in-game view of a page: a sheet that slides up over the game, which stays in view above it, blurred
+ * and shaded, with the page in an iframe under a handle. Tapping the game or the handle closes it, and so
+ * does dragging the handle down (dragged a little, it springs back). Only the handle drags: the iframe
+ * keeps its own touches for the page. Only one is open at a time. The page closes it with its own close
+ * message; a fallback close button appears if the page does not load.
  */
 export class PageOverlay {
   private root: HTMLDivElement | null = null;
+  private shade: HTMLDivElement | null = null;
+  private sheet: HTMLDivElement | null = null;
   private iframe: HTMLIFrameElement | null = null;
   private onClosed: (() => void) | null = null;
   private keyHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -114,6 +150,10 @@ export class PageOverlay {
   open(url: string, onClosed: () => void): void {
     this.close();
     this.onClosed = onClosed;
+    const backdrop = this.options.backdrop ?? '#fff';
+    const cornerRadius = this.options.cornerRadius ?? 22;
+    const topGap = Math.min(Math.max(this.options.topGap ?? 0.08, 0), 0.9);
+
     const root = document.createElement('div');
     root.setAttribute('data-baziness-overlay', '');
     root.setAttribute('role', 'dialog');
@@ -122,26 +162,72 @@ export class PageOverlay {
       position: 'fixed',
       inset: '0',
       zIndex: String(this.options.zIndex ?? 2147483000),
-      background: 'rgba(0,0,0,.45)',
       display: 'flex',
       alignItems: 'flex-end',
       justifyContent: 'center',
-      opacity: '0',
-      transition: 'opacity .25s ease',
     } satisfies Partial<CSSStyleDeclaration>);
 
+    const shade = document.createElement('div');
+    shade.setAttribute('data-baziness-shade', '');
+    Object.assign(shade.style, {
+      position: 'absolute',
+      inset: '0',
+      background: this.options.shade ?? 'rgba(8,6,4,.5)',
+      opacity: '0',
+      transition: `opacity ${SLIDE_MS}ms ease`,
+    } satisfies Partial<CSSStyleDeclaration>);
+    if (this.options.blurGame !== false) {
+      shade.style.setProperty('backdrop-filter', 'blur(3px)');
+      shade.style.setProperty('-webkit-backdrop-filter', 'blur(3px)');
+    }
+    shade.addEventListener('click', () => this.close());
+
     const sheet = document.createElement('div');
+    sheet.setAttribute('data-baziness-sheet', '');
     Object.assign(sheet.style, {
       position: 'relative',
+      display: 'flex',
+      flexDirection: 'column',
       width: '100%',
-      maxWidth: '640px',
-      height: 'calc(100% - env(safe-area-inset-top, 0px) - 12px)',
-      background: '#fff',
-      borderRadius: '16px 16px 0 0',
+      maxWidth: '560px',
+      height: `calc(${(1 - topGap) * 100}% - env(safe-area-inset-top, 0px))`,
+      background: backdrop,
+      borderRadius: `${cornerRadius}px ${cornerRadius}px 0 0`,
       overflow: 'hidden',
       transform: 'translateY(100%)',
-      transition: 'transform .35s cubic-bezier(.22,1,.36,1)',
-      boxShadow: '0 -8px 32px rgba(0,0,0,.25)',
+      transition: `transform ${SLIDE_MS}ms ${SLIDE_EASING}`,
+      boxShadow: '0 -10px 34px rgba(0,0,0,.42)',
+      willChange: 'transform',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const handle = document.createElement('div');
+    handle.setAttribute('data-baziness-handle', '');
+    handle.setAttribute('aria-hidden', 'true'); // Escape and the page's own button do this from the keyboard
+    Object.assign(handle.style, {
+      flex: '0 0 auto',
+      height: `${this.options.handleStripHeight ?? 26}px`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: backdrop,
+      cursor: 'grab',
+      touchAction: 'none',
+      userSelect: 'none',
+    } satisfies Partial<CSSStyleDeclaration>);
+    const pill = document.createElement('div');
+    Object.assign(pill.style, {
+      width: `${this.options.handleSize?.width ?? 44}px`,
+      height: `${this.options.handleSize?.height ?? 5}px`,
+      borderRadius: '999px',
+      background: this.options.handleColor ?? 'rgba(0,0,0,.22)',
+    } satisfies Partial<CSSStyleDeclaration>);
+    handle.append(pill);
+
+    const page = document.createElement('div');
+    Object.assign(page.style, {
+      position: 'relative',
+      flex: '1 1 auto',
+      minHeight: '0',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const spinner = document.createElement('div');
@@ -194,22 +280,27 @@ export class PageOverlay {
     const fallback = setTimeout(() => {
       if (iframe.style.opacity !== '1') closeButton.style.display = 'block';
     }, this.options.closeButtonAfterMs ?? 3000);
-    root.addEventListener('click', (event) => {
-      if (event.target === root) this.close();
-    });
     this.keyHandler = (event) => {
       if (event.key === 'Escape') this.close();
     };
     document.addEventListener('keydown', this.keyHandler);
 
-    sheet.append(style, spinner, iframe, closeButton);
-    root.append(sheet);
+    this.followDrags(handle, sheet, iframe);
+
+    page.append(style, spinner, iframe, closeButton);
+    sheet.append(handle, page);
+    root.append(shade, sheet);
     (this.options.container ?? document.body).append(root);
     root.dataset.fallbackTimer = String(fallback);
     this.root = root;
+    this.shade = shade;
+    this.sheet = sheet;
     this.iframe = iframe;
+    // The starting position must have been drawn, or the sheet appears without sliding.
+    void sheet.getBoundingClientRect();
     requestAnimationFrame(() => {
-      root.style.opacity = '1';
+      if (this.root !== root) return; // closed before it could slide in
+      shade.style.opacity = '1';
       sheet.style.transform = 'translateY(0)';
     });
   }
@@ -217,17 +308,68 @@ export class PageOverlay {
   close(): void {
     const root = this.root;
     if (!root) return;
+    const { shade, sheet } = this;
     this.root = null;
+    this.shade = null;
+    this.sheet = null;
     this.iframe = null;
     clearTimeout(Number(root.dataset.fallbackTimer));
     if (this.keyHandler) document.removeEventListener('keydown', this.keyHandler);
     this.keyHandler = null;
-    root.style.opacity = '0';
-    const sheet = root.firstElementChild as HTMLElement | null;
-    if (sheet) sheet.style.transform = 'translateY(100%)';
-    setTimeout(() => root.remove(), 300);
+    root.style.pointerEvents = 'none'; // the game takes the next tap, while the sheet slides away
+    if (shade) shade.style.opacity = '0';
+    if (sheet) {
+      sheet.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASING}`; // it may be closing from a drag
+      sheet.style.transform = 'translateY(100%)';
+    }
+    setTimeout(() => root.remove(), SLIDE_MS + 20);
     const onClosed = this.onClosed;
     this.onClosed = null;
     onClosed?.();
+  }
+
+  /** The sheet follows the handle down. Letting go closes it or springs it back; a tap closes it. */
+  private followDrags(handle: HTMLElement, sheet: HTMLElement, iframe: HTMLIFrameElement): void {
+    let pointerId: number | null = null;
+    let startY = 0;
+    let dragged = 0;
+    let moved = 0;
+
+    const finish = (): void => {
+      pointerId = null;
+      handle.style.cursor = 'grab';
+      iframe.style.pointerEvents = '';
+      sheet.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASING}`;
+    };
+
+    handle.addEventListener('pointerdown', (event) => {
+      if (pointerId !== null) return;
+      pointerId = event.pointerId;
+      startY = event.clientY;
+      dragged = 0;
+      moved = 0;
+      handle.setPointerCapture(event.pointerId);
+      handle.style.cursor = 'grabbing';
+      iframe.style.pointerEvents = 'none';
+      sheet.style.transition = 'none';
+    });
+    handle.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== pointerId) return;
+      moved = Math.max(moved, Math.abs(event.clientY - startY));
+      dragged = Math.max(0, event.clientY - startY); // only down
+      sheet.style.transform = `translateY(${dragged}px)`;
+    });
+    handle.addEventListener('pointerup', (event) => {
+      if (event.pointerId !== pointerId) return;
+      finish();
+      const dragToClose = this.options.dragToClose ?? 0.28;
+      if (moved < TAP_PX || dragCloses(dragged, sheet.getBoundingClientRect().height, dragToClose)) this.close();
+      else sheet.style.transform = 'translateY(0)';
+    });
+    handle.addEventListener('pointercancel', (event) => {
+      if (event.pointerId !== pointerId) return;
+      finish();
+      sheet.style.transform = 'translateY(0)';
+    });
   }
 }

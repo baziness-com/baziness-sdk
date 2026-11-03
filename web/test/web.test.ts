@@ -7,7 +7,7 @@ import { InstallCampaign } from '../src/campaign.js';
 import { CoinBalance, ReferralRewards } from '../src/coins.js';
 import { collectDevice, parseBrowser, parseOs } from '../src/device.js';
 import { readLaunch } from '../src/launch.js';
-import { pageUrl, parsePageMessage } from '../src/pages.js';
+import { dragCloses, pageUrl, parsePageMessage } from '../src/pages.js';
 import { BazinessPay } from '../src/pay.js';
 import { SessionManager } from '../src/session.js';
 import { memoryStore } from '../src/storage.js';
@@ -124,6 +124,14 @@ describe('pages', () => {
     assert.equal(login.pathname, '/');
     assert.equal(login.searchParams.get('allowGuest'), 'false');
     assert.equal(login.searchParams.get('game_name'), null);
+  });
+
+  it('closes the sheet only when its handle was dragged far enough', () => {
+    assert.equal(dragCloses(84, 300, 0.28), false, 'a little: it springs back');
+    assert.equal(dragCloses(85, 300, 0.28), true, 'past 28% of a short sheet');
+    assert.equal(dragCloses(150, 800, 0.28), false, 'on a tall sheet, up to 150 px');
+    assert.equal(dragCloses(151, 800, 0.28), true);
+    assert.equal(dragCloses(0, 800, 0.28), false);
   });
 
   it('understands every page message and nothing else', () => {

@@ -66,7 +66,7 @@ names, phone lookup, offers, referral rewards, campaign link clicks and fingerpr
 cd server-node && npm ci && npm test                 # 43 tests
 cd server-java && ./build.sh                          # 18 tests, Java 8 jar in out/
 cd server-dotnet && ./build.sh                        # 48 tests, NuGet package in out/
-cd web && npm ci && npm test && npm run build         # 13 tests, dist/ + dist/baziness.global.js
+cd web && npm ci && npm test && npm run build         # 14 tests, dist/ + dist/baziness.global.js
 cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 13 tests of the engine-free core (C# 9)
 ```
 
@@ -91,7 +91,7 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | `baziness-sdk-java-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
 | `baziness-sdk-dotnet-<version>.nupkg` | GitHub Releases | NuGet package built by CI |
 | `baziness-sdk-unity-<version>.tgz` | GitHub Releases | Unity package archive built by CI |
-| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v2.1.0` |
+| `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v2.1.1` |
 
 Keep all the version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 
