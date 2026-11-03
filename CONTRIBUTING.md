@@ -8,7 +8,7 @@ Requirements:
 
 - Node.js 18.17 or newer
 - JDK 17 or newer (the Java SDK targets Java 8)
-- .NET SDK 8 for the Unity core tests
+- .NET SDK 8 for the .NET server SDK and the Unity core tests
 
 Run the complete verification suite from the repository root:
 
@@ -16,7 +16,7 @@ Run the complete verification suite from the repository root:
 ./scripts/test-all.sh
 ```
 
-Keep the public API and behavior consistent across the Node, Java, Web, and Unity implementations.
+Keep the public API and behavior consistent across the Node, Java, .NET, Web, and Unity implementations.
 Add or update tests for behavior changes and update the relevant README.
 
 ## Pull requests

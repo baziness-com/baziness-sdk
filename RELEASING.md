@@ -1,13 +1,14 @@
 # Releasing
 
 All SDKs share one semantic version and are released from a signed `vX.Y.Z` tag. The release
-workflow verifies and tests every SDK, publishes both npm packages, and then creates a GitHub
-Release containing clearly named JavaScript server, JavaScript web, Java, and Unity artifacts with
-SHA-256 checksums:
+workflow verifies and tests every SDK, publishes both npm packages and the NuGet package, and then
+creates a GitHub Release containing clearly named JavaScript server, JavaScript web, Java, .NET, and
+Unity artifacts with SHA-256 checksums:
 
 - `baziness-sdk-js-server-X.Y.Z.tgz`
 - `baziness-sdk-js-web-X.Y.Z.tgz`
 - `baziness-sdk-java-X.Y.Z.jar`
+- `baziness-sdk-dotnet-X.Y.Z.nupkg`
 - `baziness-sdk-unity-X.Y.Z.tgz`
 
 ## One-time registry setup
@@ -33,6 +34,30 @@ package. Configure trust immediately before the next version: a new trust relati
 it does not successfully publish within two days. The workflow is idempotent and skips a version
 that was already published manually.
 
+### NuGet
+
+`Baziness.Server` is published with [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing):
+no API key is stored, the workflow exchanges a GitHub OIDC token for a key that lasts an hour.
+
+1. Sign in to nuget.org and, under your account, create an organization that will own the package.
+2. Under your username, open **Trusted Publishing** and add a policy owned by that organization:
+
+   | Field | Value |
+   | --- | --- |
+   | Repository Owner | `baziness-com` |
+   | Repository | `baziness-sdk` |
+   | Workflow File | `release.yml` |
+   | Environment | `release` |
+
+   Its scope must allow publishing new packages, so the first release can create `Baziness.Server`.
+3. Add the repository secret `NUGET_USER`: the nuget.org username (profile name, not the email) of the
+   account that made the policy.
+4. Optionally, ask nuget.org to [reserve the prefix](https://learn.microsoft.com/nuget/nuget-org/id-prefix-reservation)
+   `Baziness.`, which adds the verified check mark and stops anyone else publishing under it.
+
+The workflow is idempotent and skips a version that is already on NuGet. A package published to NuGet
+can be unlisted but not deleted.
+
 ### Java
 
 `server-java/build.sh` compiles a dependency-free Java 8 JAR, runs its tests, and the release
@@ -40,7 +65,7 @@ workflow attaches the versioned JAR directly to the GitHub Release.
 
 ## Release
 
-1. Update all five version declarations and the root changelog.
+1. Update all the version declarations `scripts/check-versions.mjs` lists and the root changelog.
 2. Run `node scripts/check-versions.mjs X.Y.Z` and `./scripts/test-all.sh`.
 3. Merge the release commit into `main` and wait for CI.
 4. Create and push a signed tag:

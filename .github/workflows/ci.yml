@@ -52,6 +52,20 @@ jobs:
       - run: ./build.sh
         working-directory: server-java
 
+  dotnet-server:
+    name: .NET server SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - run: ./build.sh
+        working-directory: server-dotnet
+
   web:
     name: Web SDK
     runs-on: ubuntu-latest

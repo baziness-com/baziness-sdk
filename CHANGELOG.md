@@ -6,6 +6,11 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- **.NET server SDK**: `Baziness.Server` on NuGet (.NET 8 or newer, no dependencies), with the same API and
+  behaviour as `@baziness/server` and `baziness-server`: players, link codes, coins, purchases, Baziness
+  Pay, sessions and trusted analytics, quests and offers. It runs against the same fake platform as the
+  others. Its release artifact is `baziness-sdk-dotnet-<version>.nupkg`.
+
 ## [2.0.0] - 2026-11-03
 
 Players get **long-lived tokens** again; there are no refresh tokens and no 15-minute access tokens

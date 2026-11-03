@@ -13,6 +13,8 @@ const versions = new Map([
   ['Node package', await jsonVersion('server-node/package.json')],
   ['Web package', await jsonVersion('web/package.json')],
   ['Java runtime', await extractVersion('server-java/src/main/java/com/baziness/server/BazinessServer.java', /SDK_VERSION\s*=\s*"([^"]+)"/, 'SDK_VERSION')],
+  ['.NET package', await extractVersion('server-dotnet/src/Baziness.Server/Baziness.Server.csproj', /<Version>([^<]+)<\/Version>/, 'Version')],
+  ['.NET runtime', await extractVersion('server-dotnet/src/Baziness.Server/BazinessServer.cs', /SdkVersion\s*=\s*"([^"]+)"/, 'SdkVersion')],
   ['Unity package', await jsonVersion('unity/com.baziness.sdk/package.json')],
   ['Unity runtime', await extractVersion('unity/com.baziness.sdk/Runtime/Core/DeviceInfo.cs', /const string Version\s*=\s*"([^"]+)"/, 'Version')],
 ]);

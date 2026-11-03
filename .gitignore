@@ -12,6 +12,7 @@ server-java/target/
 # .NET / Unity
 **/bin/
 **/obj/
+server-dotnet/out/
 unity/**/Library/
 unity/**/Logs/
 unity/**/Temp/

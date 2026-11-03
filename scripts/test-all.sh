@@ -8,5 +8,6 @@ node scripts/check-versions.mjs
 
 (cd server-node && npm ci && npm test && npm run build && npm pack --dry-run)
 (cd server-java && ./build.sh)
+(cd server-dotnet && ./build.sh)
 (cd web && npm ci && npm test && npm run build && npm pack --dry-run)
 (cd unity/tests/Baziness.Core.Tests && ./run-tests.sh)

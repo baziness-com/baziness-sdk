@@ -11,6 +11,7 @@ This document explains how the SDKs fit together and how maintainers test and re
 | --- | --- | --- | --- |
 | `@baziness/server` | the game **server** ("client" in Baziness terms) | TypeScript / Node 18+ | [server-node](server-node) |
 | `baziness-server` (`com.baziness.server`) | the game **server** (SmartFox, Spring, …) | Java 8+, no dependencies | [server-java](server-java) |
+| `Baziness.Server` | the game **server** (ASP.NET, SignalR, …) | C# / .NET 8+, no dependencies | [server-dotnet](server-dotnet) |
 | `@baziness/web` | the **device** of a web game | TypeScript, ESM + script tag | [web](web) |
 | `com.baziness.sdk` | the **device** of a Unity game | C# (Unity 2021.3+) | [unity/com.baziness.sdk](unity/com.baziness.sdk) |
 
@@ -19,7 +20,7 @@ This document explains how the SDKs fit together and how maintainers test and re
 ```
  player device                      game server                         Baziness
  ─────────────                      ───────────                         ────────
- @baziness/web | com.baziness.sdk   @baziness/server | baziness-server
+ @baziness/web | com.baziness.sdk   @baziness/server | baziness-server | Baziness.Server
    │ session / link-code / login ──►  │ client id + secret (secret never leaves)
    │      (your own routes)           │── client/auth, client/create-user ─────► id
    │                                  │── client/get-user-token (kept in memory only)
@@ -61,9 +62,10 @@ Every SDK is tested against one shared fake of the platform API, [tools/fake-hub
 names, phone lookup, offers, referral rewards, campaign link clicks and fingerprint matching, Baziness Pay payments, injected failures). Needs Node 18+.
 
 ```bash
-./scripts/test-all.sh                                 # all four SDKs
+./scripts/test-all.sh                                 # all five SDKs
 cd server-node && npm ci && npm test                 # 41 tests
 cd server-java && ./build.sh                          # 17 tests, Java 8 jar in out/
+cd server-dotnet && ./build.sh                        # 48 tests, NuGet package in out/
 cd web && npm ci && npm test && npm run build         # 13 tests, dist/ + dist/baziness.global.js
 cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 13 tests of the engine-free core (C# 9)
 ```
@@ -74,8 +76,8 @@ The Unity package itself is compiled by opening any Unity 2021.3+ project that r
 gree unity-webview; see [Third Party Notices](unity/com.baziness.sdk/Third%20Party%20Notices.md).
 
 Cross-SDK parity: `transactionIdFor(239236, 50, "match:17")` = `239236_50_dc3ee6230b3a94ce5764afe9`
-and `stableEventId("purchase:cafebazaar:order-1")` = `78b6c864-1376-5500-8720-9e4a2e0f87a2` in Node and
-Java (asserted in both test suites).
+and `stableEventId("purchase:cafebazaar:order-1")` = `78b6c864-1376-5500-8720-9e4a2e0f87a2` in Node, Java
+and .NET (asserted in all three test suites).
 
 ## Releasing
 
@@ -84,12 +86,14 @@ See [RELEASING.md](RELEASING.md) for registry bootstrap, signing, and the automa
 | Package | Where | How |
 | --- | --- | --- |
 | `@baziness/server`, `@baziness/web` | npm | push a matching `vX.Y.Z` tag; CI publishes with npm OIDC |
+| `Baziness.Server` | NuGet | push a matching `vX.Y.Z` tag; CI publishes with NuGet Trusted Publishing |
 | `baziness-sdk-js-server-<version>.tgz`, `baziness-sdk-js-web-<version>.tgz` | GitHub Releases | npm package archives built by CI |
 | `baziness-sdk-java-<version>.jar` | GitHub Releases | bump `SDK_VERSION` in `BazinessServer.java`; CI builds the dependency-free Java 8 JAR |
+| `baziness-sdk-dotnet-<version>.nupkg` | GitHub Releases | NuGet package built by CI |
 | `baziness-sdk-unity-<version>.tgz` | GitHub Releases | Unity package archive built by CI |
 | `com.baziness.sdk` | GitHub tag | use `https://github.com/baziness-com/baziness-sdk.git?path=/unity/com.baziness.sdk#v2.0.0` |
 
-Keep all five version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
+Keep all the version declarations equal. `./scripts/check-versions.mjs` verifies them locally and in CI.
 
 ## Security and contributing
 

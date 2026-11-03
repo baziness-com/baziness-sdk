@@ -9,5 +9,7 @@
 *.jar binary
 *.dll binary
 *.tgz binary
+*.nupkg binary
+*.snupkg binary
 *.aar binary
 **/WebView.bundle/** binary

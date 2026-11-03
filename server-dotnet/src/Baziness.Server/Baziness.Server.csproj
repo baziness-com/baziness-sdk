@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <RootNamespace>Baziness.Server</RootNamespace>
+    <AssemblyName>Baziness.Server</AssemblyName>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Baziness.Server</PackageId>
+    <Version>2.0.0</Version>
+    <Authors>Baziness</Authors>
+    <Description>Baziness platform SDK for .NET game servers: client auth, player sessions with long-lived tokens, link codes, Gita coins, purchases, Baziness Pay and trusted analytics.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/baziness-com/baziness-sdk/tree/main/server-dotnet#readme</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/baziness-com/baziness-sdk/blob/main/CHANGELOG.md</PackageReleaseNotes>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>baziness;game;server;sdk;gita;coins;analytics;payments</PackageTags>
+    <RepositoryUrl>https://github.com/baziness-com/baziness-sdk.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <InternalsVisibleTo Include="Baziness.Server.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -78,9 +78,54 @@ jobs:
           publish_package server-node @baziness/server
           publish_package web @baziness/web
 
+  publish-nuget:
+    name: Publish NuGet package
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - id: published
+        name: Check whether this version is already on NuGet
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          if curl --silent --fail --output /dev/null \
+            "https://api.nuget.org/v3-flatcontainer/baziness.server/$VERSION/baziness.server.nuspec"; then
+            echo "Baziness.Server $VERSION is already published; skipping"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the package
+        if: steps.published.outputs.exists != 'true'
+        run: ./server-dotnet/build.sh --no-test
+      - id: login
+        name: Get a short-lived NuGet API key
+        if: steps.published.outputs.exists != 'true'
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Publish to NuGet
+        if: steps.published.outputs.exists != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          dotnet nuget push "server-dotnet/out/Baziness.Server.$VERSION.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
   github-release:
     name: Publish SDK release artifacts
-    needs: [verify, publish-npm]
+    needs: [verify, publish-npm, publish-nuget]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -95,6 +140,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
       - name: Build release artifacts
         env:
           VERSION: ${{ needs.verify.outputs.version }}
@@ -118,6 +166,9 @@ jobs:
           ./server-java/build.sh --no-test
           cp "server-java/out/baziness-server-$VERSION.jar" \
             "release-artifacts/baziness-sdk-java-$VERSION.jar"
+          ./server-dotnet/build.sh --no-test
+          cp "server-dotnet/out/Baziness.Server.$VERSION.nupkg" \
+            "release-artifacts/baziness-sdk-dotnet-$VERSION.nupkg"
           (cd release-artifacts && sha256sum * > SHA256SUMS)
       - name: Create GitHub release
         env:
