@@ -5,7 +5,8 @@ import { CoinBalance, ReferralRewards } from './coins.js';
 import { collectDevice, refineDevice, SDK_VERSION, type DeviceInfo } from './device.js';
 import { ENVIRONMENTS, type BazinessEnvironment } from './environment.js';
 import { readLaunch, type Attribution, type LaunchParams } from './launch.js';
-import { PageOverlay, pageUrl, parsePageMessage, type OverlayOptions, type PageMessage, type PageName } from './pages.js';
+import { pageUrl, parsePageMessage, type PageMessage, type PageName } from './pages.js';
+import { PageOverlay, type OverlayOptions } from './sheet.js';
 import { BazinessPay } from './pay.js';
 import { SessionManager } from './session.js';
 import { browserStore, uuid, type KeyValueStore } from './storage.js';
@@ -48,6 +49,8 @@ export interface BazinessEvents {
   open: PageName | string;
   close: PageName | string;
   share: string;
+  /** A page's text to share went to the clipboard (no share sheet here): tell the player it was copied. */
+  copied: string;
   error: Error;
 }
 
@@ -164,14 +167,25 @@ export class BazinessWeb {
     return this.sessions.get(true);
   }
 
-  /** Open a Baziness page over the game with a fresh link code. */
+  /**
+   * Open a Baziness page over the game. The sheet slides up at once with the loader, and shows the page
+   * as soon as its fresh link code is ready. When there is no link code (Baziness unreachable), the sheet
+   * closes again (`close` event) and this rejects.
+   */
   async openPage(page: PageName | string, query?: Record<string, string>): Promise<void> {
-    const url = await this.pageUrl(page, query);
+    const sheet = this.overlay.open(() => this.pageClosed(page));
     this.openPageName = page;
     this.openedAt = Date.now();
-    this.overlay.open(url, () => this.pageClosed(page));
     this.analytics.record('baziness:page:open', { props: { page } });
     this.emit('open', page);
+    let url: string;
+    try {
+      url = await this.pageUrl(page, query);
+    } catch (error) {
+      this.overlay.close(sheet);
+      throw error;
+    }
+    this.overlay.load(sheet, url);
   }
 
   closePage(): void {
@@ -240,7 +254,7 @@ export class BazinessWeb {
         window.open(message.url, '_blank', 'noopener');
         return;
       case 'share_text':
-        await share(message.text);
+        if ((await share(message.text)) === 'copied') this.emit('copied', message.text);
         this.emit('share', message.text);
         return;
     }
@@ -305,19 +319,28 @@ export class BazinessWeb {
   }
 }
 
-async function share(text: string): Promise<void> {
+/**
+ * The browser's share sheet on the game's own document (a page cannot open it from inside the frame),
+ * or the clipboard where there is none. A player who cancels the sheet has been served: nothing is copied.
+ */
+async function share(text: string): Promise<'shared' | 'copied' | 'failed'> {
   const nav = typeof navigator === 'undefined' ? undefined : navigator;
-  try {
-    if (nav?.share) {
-      await nav.share({ text });
-      return;
+  const value = text?.trim();
+  if (!value) return 'failed';
+  if (nav?.share) {
+    try {
+      await nav.share({ text: value });
+      return 'shared';
+    } catch (error) {
+      if ((error as { name?: string } | null)?.name === 'AbortError') return 'shared';
+      // blocked: fall back to the clipboard
     }
-  } catch {
-    // cancelled or blocked: fall back to the clipboard
   }
   try {
-    await nav?.clipboard?.writeText(text);
+    if (!nav?.clipboard) return 'failed';
+    await nav.clipboard.writeText(value);
+    return 'copied';
   } catch {
-    // nothing else to try
+    return 'failed';
   }
 }

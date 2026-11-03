@@ -61,19 +61,30 @@ completeButton.onclick = async () => {
 
 ## The page sheet
 
-`openPage` shows the page on a sheet that slides up over the game, which stays in view above it, blurred and
-shaded. A handle tops the sheet: tapping it or the game closes the page, and so does dragging it down
-(dragged a little, it springs back). The `overlay` option of `BazinessWeb.init` styles it:
+`openPage` slides a sheet up over the game at once, with the Baziness logo and a spinner, and shows the page
+when its link code is ready and the page has loaded. The game stays in view above it, blurred and shaded. A
+handle strip over the top of the page closes it when tapped (it is a button, so keyboards press it too); dragged
+down, the sheet follows the finger and the shade lightens with it: let go past a quarter of the sheet and it
+closes, otherwise it springs back. Tapping the game or Escape closes it too. The shade's blur radius never
+changes, only its opacity, so weak phones stay smooth; reduced motion is respected. The `overlay` option of
+`BazinessWeb.init` styles it:
 
 | Option | Default | |
 | --- | --- | --- |
-| `topGap` | `0.08` | the game left in view above the sheet, as a part of the screen height |
-| `shade`, `blurGame` | `rgba(8,6,4,.5)`, `true` | over the game, above the sheet |
-| `backdrop` | white | behind the page while it loads, and behind the handle |
-| `cornerRadius` | `22` | the sheet's top corners, in pixels |
-| `handleStripHeight`, `handleSize`, `handleColor` | `26`, 44 × 5, `rgba(0,0,0,.22)` | the handle, in pixels |
-| `dragToClose` | `0.28` | dragged further than this part of the sheet (150 pixels at most), it closes when let go |
-| `container`, `zIndex`, `closeButtonAfterMs` | `document.body`, on top, `3000` | where it attaches; when the fallback close button appears |
+| `topGap` | 22 px | the game left in view above the sheet: pixels (1 or more) or a part of the screen height |
+| `maxWidth`, `cornerRadius` | `480`, `20` | the sheet, in pixels |
+| `shade`, `blurGame`, `blurPx` | `rgba(15,23,42,.46)`, `true`, `14` | over the game, around the sheet |
+| `backdrop` | `#4c1d95` | the sheet itself, seen at its edges while it slides |
+| `loaderIcon`, `loaderBackground` | the Baziness logo, white | while the page loads; `loaderIcon: null` shows the spinner only |
+| `spinnerColor`, `spinnerTrackColor` | `#6938ef`, `rgba(105,56,239,.18)` | the spinner |
+| `handleStripHeight`, `handleSize`, `handleColor` | `32`, 96 × 4, `rgba(216,180,254,.85)` | the handle, in pixels |
+| `closeLabel` | `Close` | the handle's accessible name; a function is read at each open (your language) |
+| `dragToClose` | `0.25` | dragged further than this part of the sheet (160 pixels at most), it closes when let go |
+| `container`, `zIndex` | `document.body`, on top | where it attaches; lower `zIndex` to keep your own toasts above it |
+| `closeButtonAfterMs` | `false` | show a fallback close button over a page that has not loaded after this long |
+
+A page's text to share opens the browser's share sheet; where there is none it goes to the clipboard and
+`copied` fires, for your "copied" toast.
 
 Without a bundler: `<script src="baziness.global.js"></script>` → `window.Baziness.BazinessWeb`.
 

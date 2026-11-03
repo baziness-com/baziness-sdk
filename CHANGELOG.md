@@ -6,6 +6,20 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-04
+
+- **Web: the page sheet from Fal, for every web game**: the sheet slides up at once with the Baziness logo and a
+  spinner (`loaderIcon`, `spinnerColor`, `loaderBackground`) and shows the page when its link code is ready and
+  loaded, where `openPage` used to wait for the link code before showing anything. A handle strip over the top
+  of the page (a button: `closeLabel`) closes it when tapped; dragged, the sheet follows 1:1 and the shade
+  lightens with it, closing past a quarter of the sheet (160 px at most) or springing back. The shade's blur
+  radius is fixed and only its opacity animates, which keeps weak phones smooth; reduced motion is respected.
+  New defaults: 22 px gap above (`topGap` also takes pixels), 480 px wide (`maxWidth`), 20 px corners, 14 px
+  blur (`blurPx`), Baziness purple. The fallback close button is off unless `closeButtonAfterMs` is set.
+- Web: a page's shared text that falls back to the clipboard emits `copied`; cancelling the share sheet no
+  longer copies the text.
+- No change in the other SDKs: they share one version.
+
 ## [2.1.1] - 2026-11-03
 
 - **Web: pages open on a sheet with a handle, like Unity's**: the game stays in view above the sheet, blurred

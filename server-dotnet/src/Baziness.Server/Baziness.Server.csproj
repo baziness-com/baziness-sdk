@@ -14,7 +14,7 @@
 
   <PropertyGroup>
     <PackageId>Baziness.Server</PackageId>
-    <Version>2.1.1</Version>
+    <Version>2.2.0</Version>
     <Authors>Baziness</Authors>
     <Description>Baziness platform SDK for .NET game servers: client auth, player sessions with long-lived tokens, link codes, Gita coins, purchases, Baziness Pay and trusted analytics.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
