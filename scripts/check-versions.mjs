@@ -11,7 +11,9 @@ const extractVersion = async (path, pattern, label) => {
 
 const versions = new Map([
   ['Node package', await jsonVersion('server-node/package.json')],
+  ['Node runtime', await extractVersion('server-node/src/server.ts', /SDK_VERSION\s*=\s*'([^']+)'/, 'SDK_VERSION')],
   ['Web package', await jsonVersion('web/package.json')],
+  ['Web runtime', await extractVersion('web/src/device.ts', /SDK_VERSION\s*=\s*'([^']+)'/, 'SDK_VERSION')],
   ['Java runtime', await extractVersion('server-java/src/main/java/com/baziness/server/BazinessServer.java', /SDK_VERSION\s*=\s*"([^"]+)"/, 'SDK_VERSION')],
   ['.NET package', await extractVersion('server-dotnet/src/Baziness.Server/Baziness.Server.csproj', /<Version>([^<]+)<\/Version>/, 'Version')],
   ['.NET runtime', await extractVersion('server-dotnet/src/Baziness.Server/BazinessServer.cs', /SdkVersion\s*=\s*"([^"]+)"/, 'SdkVersion')],

@@ -8,7 +8,7 @@ import { Players } from './players.js';
 import { Purchases } from './purchases.js';
 import type { WireOffer } from './wire.js';
 
-export const SDK_VERSION = '1.5.0';
+export const SDK_VERSION = '2.1.0';
 
 export interface BazinessServerOptions {
   /** `staging` while you integrate and test; `production` after the platform team's review. */

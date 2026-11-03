@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-03
+
 - **.NET server SDK**: `Baziness.Server` on NuGet (.NET 8 or newer, no dependencies), with the same API and
   behaviour as `@baziness/server` and `baziness-server`: players, link codes, coins, purchases, Baziness
   Pay, sessions and trusted analytics, quests and offers. It runs against the same fake platform as the
@@ -14,6 +16,7 @@ The project follows [Semantic Versioning](https://semver.org/).
   from the SDK's memory, and since 2.0.0 tokens live for years, so `isLinkedToAccount` stayed `false` after
   a player linked on a page, and a blocked account went unnoticed, until the server restarted. It now asks
   the platform; `players.session` still answers from memory.
+- `SDK_VERSION` of `@baziness/server` still said 1.5.0; it and the web SDK's are now checked with the others.
 
 ## [2.0.0] - 2026-11-03
 

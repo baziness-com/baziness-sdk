@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.0 — 2026-11-03
+
+- No change in this package: the SDKs share one version, and 2.1.0 adds the .NET server SDK.
+
 ## 2.0.0 — 2026-11-03
 
 - No API change. Players' tokens from your server are long-lived again (the platform withdrew

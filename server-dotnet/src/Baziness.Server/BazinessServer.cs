@@ -43,7 +43,7 @@ public sealed record PublicConfig(BazinessEnvironment Environment, string ApiUrl
 /// </summary>
 public sealed class BazinessServer : IAsyncDisposable
 {
-    public const string SdkVersion = "2.0.0";
+    public const string SdkVersion = "2.1.0";
 
     private const int DefaultCloseTimeoutMs = 5000;
 
