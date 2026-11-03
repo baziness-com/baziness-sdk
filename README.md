@@ -63,8 +63,8 @@ names, phone lookup, offers, referral rewards, campaign link clicks and fingerpr
 
 ```bash
 ./scripts/test-all.sh                                 # all five SDKs
-cd server-node && npm ci && npm test                 # 41 tests
-cd server-java && ./build.sh                          # 17 tests, Java 8 jar in out/
+cd server-node && npm ci && npm test                 # 43 tests
+cd server-java && ./build.sh                          # 18 tests, Java 8 jar in out/
 cd server-dotnet && ./build.sh                        # 48 tests, NuGet package in out/
 cd web && npm ci && npm test && npm run build         # 13 tests, dist/ + dist/baziness.global.js
 cd unity/tests/Baziness.Core.Tests && ./run-tests.sh  # 13 tests of the engine-free core (C# 9)

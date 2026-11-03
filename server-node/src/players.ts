@@ -85,7 +85,9 @@ export class Players {
   /**
    * The one call for "a player's device came online". Creates the Baziness user the first time (or
    * when the player arrived with a link code), otherwise gets the player's token. Reports
-   * `auth_login` when a user was created or joined through a link code.
+   * `auth_login` when a user was created or joined through a link code. Asks the platform every time:
+   * what comes back also says whether the player has linked an account or been blocked since, which
+   * the token staying valid does not show.
    *
    * Compare the returned `userId` with the one you saved: when it belongs to **another** of your
    * players, it is the same person on another device — switch this device to that player.
@@ -107,7 +109,7 @@ export class Players {
         return this.keep(session, 'created', true);
       }
     }
-    const result = await this.session(input.userId);
+    const result = await this.fetch(input.userId);
     return { ...result, linkCodeRejected };
   }
 
@@ -120,14 +122,7 @@ export class Players {
     if (cached && Date.parse(cached.accessTokenExpiresAt) - Date.now() > MIN_TOKEN_LIFE_MS) {
       return { ...cached, method: 'refresh', linkCodeRejected: false };
     }
-    let pending = this.inFlight.get(userId);
-    if (!pending) {
-      pending = this.token(userId)
-        .then((session) => this.keep(session, 'refresh', false))
-        .finally(() => this.inFlight.delete(userId));
-      this.inFlight.set(userId, pending);
-    }
-    return pending;
+    return this.fetch(userId);
   }
 
   /** A link code for opening a Baziness page as this player. Get a new one for every page. */
@@ -250,6 +245,18 @@ export class Players {
   }
 
   // ── Internals ─────────────────────────────────────────────────────────────────
+
+  /** The platform's answer for a known player, one request at a time per player. */
+  private fetch(userId: number): Promise<SignInResult> {
+    let pending = this.inFlight.get(userId);
+    if (!pending) {
+      pending = this.token(userId)
+        .then((session) => this.keep(session, 'refresh', false))
+        .finally(() => this.inFlight.delete(userId));
+      this.inFlight.set(userId, pending);
+    }
+    return pending;
+  }
 
   private keep(session: PlayerSession, method: SignInMethod, linkCodeRejected: boolean): SignInResult {
     const result: PlayerSession = {

@@ -68,5 +68,5 @@ Report each payment you granted like any other purchase: `purchases().record` wi
 `BAZINESS_PAY_BASE_URL` (or `Builder.payBaseUrl`) overrides the environment's Pay address.
 
 ```bash
-./build.sh           # javac --release 8 → out/baziness-server-2.0.0.jar, then 17 tests (needs Node for the fake platform)
+./build.sh           # javac --release 8 → out/baziness-server-2.0.0.jar, then 18 tests (needs Node for the fake platform)
 ```

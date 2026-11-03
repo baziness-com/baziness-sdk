@@ -95,6 +95,22 @@ describe('players', () => {
     assert.equal(await tokenCalls(), 0);
   });
 
+  it('sign-in sees an account linked since the token was cached', async () => {
+    const { baziness } = sdk(hub);
+    const first = await baziness.players.signIn(device);
+    assert.equal(first.isLinkedToAccount, false);
+    await control(hub, 'phone-login', { userId: first.userId, phone: '09121234567' });
+    const again = await baziness.players.signIn({ ...device, userId: first.userId });
+    assert.equal(again.isLinkedToAccount, true);
+  });
+
+  it('sign-in sees an account blocked since the token was cached', async () => {
+    const { baziness } = sdk(hub);
+    const first = await baziness.players.signIn(device);
+    await control(hub, 'suspend', { userId: first.userId });
+    await assert.rejects(baziness.players.signIn({ ...device, userId: first.userId }), { code: 'account_suspended' });
+  });
+
   it('asks once when several requests need the same player\'s token at once', async () => {
     const first = await sdk(hub).baziness.players.signIn(device);
     const { baziness } = sdk(hub);

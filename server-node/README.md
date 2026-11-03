@@ -70,4 +70,4 @@ Report each payment you granted like any other purchase: `purchases.record` with
 and the payment's token as the order id (provider: `payment.gateway`, when you have it). `BAZINESS_PAY_BASE_URL`
 (or `payBaseUrl`) overrides the environment's Pay address.
 
-`npm test` runs 41 tests against the shared fake platform in `../tools/fake-hub`.
+`npm test` runs 43 tests against the shared fake platform in `../tools/fake-hub`.

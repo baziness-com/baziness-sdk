@@ -67,6 +67,23 @@ public final class BazinessServerTest {
                 equal(requests("/api/auth/") + requests("/api/v2/client/create-user")
                         + requests("/api/v2/client/access-token/"), 0);
             });
+            test("sign-in sees an account linked or blocked since the token was cached", () -> {
+                BazinessServer baziness = sdk();
+                SignInResult first = baziness.players().signIn(new SignInRequest("phone-1", "Android", "CafeBazaar"));
+                check(!first.isLinkedToAccount, "anonymous at first");
+                control("phone-login", "{\"userId\":" + first.userId + ",\"phone\":\"09121234567\"}");
+                SignInResult again = baziness.players().signIn(
+                        new SignInRequest("phone-1", "Android", "CafeBazaar").userId(first.userId));
+                check(again.isLinkedToAccount, "linked since");
+                control("suspend", "{\"userId\":" + first.userId + "}");
+                boolean reported = false;
+                try {
+                    baziness.players().signIn(new SignInRequest("phone-1", "Android", "CafeBazaar").userId(first.userId));
+                } catch (BazinessException e) {
+                    reported = e.hasCode(BazinessException.ACCOUNT_SUSPENDED);
+                }
+                check(reported, "a blocked account is reported");
+            });
             test("joins a player arriving with a link code to the same person", () -> {
                 BazinessServer yatzy = sdk(13, "fake-client-secret-13");
                 SignInResult yatzyPlayer = yatzy.players().signIn(new SignInRequest("phone", "Android", "CafeBazaar"));

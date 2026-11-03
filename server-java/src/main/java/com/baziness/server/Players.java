@@ -69,7 +69,9 @@ public final class Players {
     /**
      * The one call for "a player's device came online". Creates the Baziness user the first time (or
      * when the player arrived with a link code), otherwise gets the player's token. Reports
-     * {@code auth_login} when a user was created or joined through a link code.
+     * {@code auth_login} when a user was created or joined through a link code. Asks the platform every
+     * time: what comes back also says whether the player has linked an account or been blocked since,
+     * which the token staying valid does not show.
      * <p>
      * Compare the returned {@code userId} with the one you saved: when it belongs to another of your
      * players, it is the same person on another device — switch this device to that player.
@@ -94,7 +96,10 @@ public final class Players {
                         SignInResult.Method.CREATED, true);
             }
         }
-        SignInResult result = session(request.userId);
+        SignInResult result;
+        synchronized (locks[(int) (Math.abs(request.userId) % LOCK_STRIPES)]) {
+            result = keep(token(request.userId), SignInResult.Method.REFRESH, false);
+        }
         return new SignInResult(result, result.method, linkCodeRejected);
     }
 
