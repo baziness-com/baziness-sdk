@@ -6,6 +6,15 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-04
+
+- **Unity: the page reaches the sheet's top, under the handle, like the web SDK's**: the handle strip
+  (`handleStripHeight`, `handleSize`, `handleColor`) now lies over the top of the page, which shows under
+  it, where it used to be an empty strip above the page; the page's corners round like the sheet's
+  (`cornerRadius`). Tapping the handle closes the page; dragged, the sheet follows the finger on Android
+  (elsewhere the page's content follows) and closes past `dragToClose` or springs back.
+- No change in the other SDKs: they share one version.
+
 ## [2.2.0] - 2026-11-04
 
 - **Web: the page sheet from Fal, for every web game**: the sheet slides up at once with the Baziness logo and a

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Globalization;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -19,7 +20,7 @@ namespace Baziness
         [Tooltip("The game left in view above the sheet, as a part of the screen height.")]
         [Range(0f, 0.3f)]
         public float topGap = 0.06f;
-        [Tooltip("The top of the sheet with the handle: tap it to close, or drag it down.")]
+        [Tooltip("The strip over the top of the page that holds the handle: tap it to close, or drag it down. The page shows under it.")]
         public float handleStripHeight = 110;
         public Vector2 handleSize = new Vector2(220, 22);
         public Color handleColor = new Color(0.8f, 0.8f, 0.84f);
@@ -53,8 +54,9 @@ namespace Baziness
 
     /// <summary>
     /// The SDK's page view: the page in the bundled web view (gree unity-webview) on a sheet that slides up
-    /// over the game, which stays in view above it, blurred and shaded. A handle tops the sheet: tapping it or
-    /// the game closes the page, and so does dragging it down (dragged a little, it springs back). A spinner
+    /// over the game, which stays in view above it, blurred and shaded. The page fills the sheet, and a handle
+    /// strip over its top (in the page, as the web SDK's) closes it when tapped, as does tapping the game or
+    /// dragging the handle down (dragged a little, it springs back). A spinner
     /// while the page loads, a close button when it loads slowly, a retry button when it cannot load (no
     /// blank page in its place), and the Android back button. It appears the moment a page is asked for and
     /// starts the web view while your server makes the link code. Works on Android, iOS and macOS (the editor
@@ -63,6 +65,68 @@ namespace Baziness
     public sealed class BazinessWebView : MonoBehaviour, IInstantPageView
     {
         private const string SpritesPath = "BazinessWebView/";
+        // What the handle strip in the page sends, never passed on to the SDK as a page message.
+        private const string SheetMessage = "bz-sheet:";
+        // A flick down faster than this, in canvas units a second, closes the page however far it was dragged.
+        private const float FlickToClose = 2000f;
+
+        // The handle strip over the top of the page, put in every page that loads. It sends bz-sheet:tap, and
+        // drag:<down> while dragged and release:<down>:<speed down>, in screen pixels (and per second). Sizes are
+        // in vw: the page loads while the web view is hidden, when it is 0 wide. Android's web view (Chromium)
+        // gives touches' screenY from the screen, so there the native view follows the finger: drag moves it.
+        // Elsewhere screenY is within the view, so the view stays put while dragged and the page's content
+        // follows instead; settle() brings it back.
+        private const string HandleScript = @"(function (c) {
+  var w = window, d = document, root = d.documentElement;
+  var call = function (m) { try { w.Unity.call('bz-sheet:' + m); } catch (e) {} };
+  w.__bazinessSheet = { settle: function (ms) {
+    root.style.transition = 'transform ' + ms + 'ms cubic-bezier(.215,.61,.355,1)';
+    root.style.transform = '';
+  } };
+  if (d.getElementById('baziness-sheet-handle') || !d.body) return;
+  var vw = function (px) { return px * 100 / c.screen + 'vw'; };
+  var screen = function (cssPx) { return (cssPx * c.screen / (w.innerWidth || c.screen)).toFixed(1); };
+  var strip = d.createElement('div');
+  strip.id = 'baziness-sheet-handle';
+  strip.setAttribute('role', 'button');
+  strip.setAttribute('aria-label', 'Close');
+  strip.style.cssText = 'position:fixed;top:0;left:0;right:0;margin:0;padding:0;border:0;background:transparent;' +
+    'display:flex;align-items:center;justify-content:center;z-index:2147483647;touch-action:none;' +
+    '-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;height:' + vw(c.strip);
+  var bar = d.createElement('span');
+  bar.style.cssText = 'display:block;pointer-events:none;border-radius:999px;background:' + c.color +
+    ';width:' + vw(c.width) + ';height:' + vw(c.height);
+  strip.appendChild(bar);
+  d.body.appendChild(strip);
+  var id = null, start = 0, last = 0, lastAt = 0, speed = 0, down = 0, moved = false;
+  var y = function (e) { return c.follow ? e.screenY : e.clientY; };
+  strip.addEventListener('pointerdown', function (e) {
+    if (id !== null) return;
+    id = e.pointerId; start = last = y(e); lastAt = e.timeStamp; speed = 0; down = 0; moved = false;
+    try { strip.setPointerCapture(id); } catch (x) {}
+    e.preventDefault();
+  });
+  strip.addEventListener('pointermove', function (e) {
+    if (e.pointerId !== id) return;
+    var at = y(e), dt = e.timeStamp - lastAt;
+    if (dt > 0) speed = speed / 2 + (at - last) / dt * 500;
+    last = at; lastAt = e.timeStamp;
+    down = Math.max(0, at - start);
+    if (down > 4) moved = true;
+    if (!moved) return;
+    if (c.follow) { call('drag:' + screen(down)); return; }
+    root.style.transition = 'none';
+    root.style.transform = 'translateY(' + down + 'px)';
+  });
+  var end = function (e, cancelled) {
+    if (e.pointerId !== id) return;
+    id = null;
+    if (moved) call('release:' + screen(down) + ':' + screen(cancelled ? 0 : speed));
+    else if (!cancelled) call('tap');
+  };
+  strip.addEventListener('pointerup', function (e) { end(e, false); });
+  strip.addEventListener('pointercancel', function (e) { end(e, true); });
+})(window.__bazinessSheetConfig);";
 
         private PageViewStyle style;
         private RectTransform canvasRect;
@@ -181,10 +245,12 @@ namespace Baziness
             view.bitmapRefreshCycle = 1;
 #endif
             view.Init(
-                cb: message => onMessage?.Invoke(message),
+                cb: OnPageMessage,
                 err: OnLoadError,
                 httpErr: error => Debug.LogWarning("[baziness] page HTTP error: " + error),
-                ld: _ => OnLoaded());
+                ld: _ => OnLoaded(),
+                // The page reaches the sheet's top: its corners round like the sheet's, which shows behind them.
+                radius: CornerRadiusPoints());
 #if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX || UNITY_IOS
             // UIWebView fallback: WKWebView defines Unity.call itself.
             view.EvaluateJS(@"if (!(window.webkit && window.webkit.messageHandlers)) {
@@ -295,7 +361,70 @@ namespace Baziness
             if (webView == null || closing || !pageRequested || failed)
                 return;
             loaded = true;
+            webView.EvaluateJS(HandleConfig() + HandleScript);
             ShowPage();
+        }
+
+        // The handle strip's look, in screen pixels, and the screen's width: the script sizes it in vw.
+        private string HandleConfig()
+        {
+            var scale = PixelsPerUnit();
+            var color = style.handleColor;
+            var follow = false;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            follow = true;
+#endif
+            return string.Format(CultureInfo.InvariantCulture,
+                "window.__bazinessSheetConfig={{screen:{0},strip:{1:0.#},width:{2:0.#},height:{3:0.#},color:'rgba({4},{5},{6},{7:0.###})',follow:{8}}};",
+                Screen.width, style.handleStripHeight * scale, style.handleSize.x * scale, style.handleSize.y * scale,
+                Mathf.RoundToInt(color.r * 255), Mathf.RoundToInt(color.g * 255), Mathf.RoundToInt(color.b * 255), color.a,
+                follow ? "true" : "false");
+        }
+
+        private void OnPageMessage(string message)
+        {
+            var body = message != null && message.StartsWith("unity:", StringComparison.Ordinal) ? message.Substring("unity:".Length) : message;
+            if (body != null && body.StartsWith(SheetMessage, StringComparison.Ordinal))
+                OnSheetMessage(body.Substring(SheetMessage.Length).Split(':'));
+            else
+                onMessage?.Invoke(message);
+        }
+
+        /// <summary>The handle strip in the page: <c>tap</c>, <c>drag</c> and <c>release</c>, in screen pixels.</summary>
+        private void OnSheetMessage(string[] parts)
+        {
+            if (webView == null || closing)
+                return;
+            switch (parts[0])
+            {
+                case "tap":
+                    Close();
+                    break;
+                case "drag":
+                    if (opening)
+                        return;
+                    dragging = true;
+                    PlaceSheet(Number(parts, 1) / PixelsPerUnit());
+                    break;
+                case "release":
+                    // Where the native view stays put (not Android), only the page's content was dragged.
+                    dragging = true;
+                    var down = Number(parts, 1) / PixelsPerUnit();
+                    OnHandleRelease(Number(parts, 2) / PixelsPerUnit(), Mathf.Max(down, dragOffset));
+                    break;
+            }
+        }
+
+        private static float Number(string[] parts, int index)
+        {
+            return parts.Length > index && float.TryParse(parts[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0f;
+        }
+
+        // The sheet's corner radius in the web view's units: Android's dp, iOS and macOS points.
+        private int CornerRadiusPoints()
+        {
+            var density = Screen.dpi > 0 ? Screen.dpi / 160f : 1f;
+            return Mathf.Max(0, Mathf.RoundToInt(style.cornerRadius * PixelsPerUnit() / density));
         }
 
         private void OnLoadError(string error)
@@ -343,11 +472,11 @@ namespace Baziness
             return Height() > 0 ? Screen.height / Height() : 1f;
         }
 
-        /// <summary>The page under the handle, moved down with the sheet (it keeps its height).</summary>
+        /// <summary>The page over the whole sheet, the handle strip on it, moved down with the sheet (it keeps its height).</summary>
         private void PlaceWebView()
         {
             var scale = PixelsPerUnit();
-            var top = Mathf.RoundToInt((SheetTop() + style.handleStripHeight) * scale);
+            var top = Mathf.RoundToInt(SheetTop() * scale);
             var offset = Mathf.RoundToInt(dragOffset * scale);
             webView.SetMargins(0, top + offset, 0, -offset);
         }
@@ -376,16 +505,20 @@ namespace Baziness
             PlaceSheet(dragOffset - deltaUnits);
         }
 
-        private void OnHandleRelease(float velocityUnits)
+        private void OnHandleRelease(float speedDown, float dragged)
         {
             if (!dragging || webView == null || closing)
                 return;
             dragging = false;
             // A flick down closes it as well as a long drag.
-            if (dragOffset > (Height() - SheetTop()) * style.dragToClose || velocityUnits < -2000f)
+            if (dragged > (Height() - SheetTop()) * style.dragToClose || speedDown > FlickToClose)
                 Close();
             else
+            {
+                webView.EvaluateJS(string.Format(CultureInfo.InvariantCulture,
+                    "window.__bazinessSheet&&window.__bazinessSheet.settle({0:0})", style.openSeconds * 1000));
                 StartCoroutine(SpringBack());
+            }
         }
 
         private IEnumerator SpringBack()
@@ -639,7 +772,7 @@ namespace Baziness
 
             public void OnEndDrag(PointerEventData eventData)
             {
-                Owner.OnHandleRelease(velocity);
+                Owner.OnHandleRelease(-velocity, Owner.dragOffset);
             }
         }
     }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.0 — 2026-11-04
+
+- The page reaches the sheet's top, under the handle, like the web SDK's: the handle strip
+  (`handleStripHeight`, `handleSize`, `handleColor`) lies over the top of the page, which shows under it,
+  where it used to be an empty strip above the page; the page's corners round like the sheet's
+  (`cornerRadius`). Tapping the handle closes the page; dragged, the sheet follows the finger on Android
+  (elsewhere the page's content follows) and closes past `dragToClose` or springs back.
+
 ## 2.2.0 — 2026-11-04
 
 - No change in this package: the SDKs share one version, and 2.2.0 changes the web SDK's page sheet.
