@@ -1,6 +1,6 @@
 {
   "name": "@baziness/web",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Baziness platform SDK for web games: Baziness pages (sign-in, profile, rewards), Gita coin balance, first-touch attribution, device info and player analytics.",
   "license": "Apache-2.0",
   "repository": {

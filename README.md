@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Everything a partner game needs to join Baziness: one account across games, Gita coins, Baziness
-pages, purchases and growth analytics. Each package directory contains its setup and API guide.
+pages, sponsor ads, purchases and growth analytics. Each package directory contains its setup and API guide.
 This document explains how the SDKs fit together and how maintainers test and release them.
 
 | Package | For | Language | Folder |

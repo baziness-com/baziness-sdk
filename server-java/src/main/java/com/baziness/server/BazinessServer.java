@@ -12,7 +12,7 @@ import java.util.Map;
  * </pre>
  */
 public final class BazinessServer {
-    public static final String SDK_VERSION = "2.3.0";
+    public static final String SDK_VERSION = "2.4.0";
 
     private final Environment environment;
     private final String apiBase;
@@ -22,6 +22,7 @@ public final class BazinessServer {
     private final ServerAnalytics analytics;
     private final Quests quests;
     private final Offers offers;
+    private final Ads ads;
     private final String payBase;
     private final Transport payTransport;
 
@@ -41,6 +42,7 @@ public final class BazinessServer {
         this.purchases = new Purchases(transport, analytics);
         this.quests = new Quests(transport);
         this.offers = new Offers(transport);
+        this.ads = new Ads(transport);
         String pay = builder.payBaseUrl != null && !builder.payBaseUrl.trim().isEmpty()
                 ? builder.payBaseUrl.trim() : builder.environment.payUrl();
         this.payBase = pay.replaceAll("/+$", "");
@@ -102,6 +104,10 @@ public final class BazinessServer {
 
     public Offers offers() {
         return offers;
+    }
+
+    public Ads ads() {
+        return ads;
     }
 
     /** The Baziness Pay root this server checks payments with. */

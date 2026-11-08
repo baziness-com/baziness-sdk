@@ -138,6 +138,40 @@ public final class BazinessServerTest {
                 control("offer", "{\"playerId\":42,\"bundleId\":7}");
                 equal(baziness.offers().get(42), 7);
             });
+            test("ads use client auth, return no ad, and track full-width ids without replaying failures", () -> {
+                BazinessServer baziness = sdk();
+                check(baziness.ads().get() == null, "204 means no ad");
+                control("ad", "{\"ad\":null}");
+                check(baziness.ads().get() == null, "JSON null means no ad");
+                control("ad", "{\"ad\":{\"id\":4294967297,\"title\":\"Sponsor\",\"imageUrl\":\"https://example.test/ad.png\",\"link\":\"https://example.test/\"}}");
+                Ads.Ad ad = baziness.ads().get();
+                equal(ad.id, 4294967297L);
+                equal(ad.title, "Sponsor");
+                equal(ad.imageUrl, "https://example.test/ad.png");
+                equal(ad.link, "https://example.test/");
+                check(sdk(13, "fake-client-secret-13").ads().get() == null, "ad scoped to client");
+                control("expire-client-tokens", "{}");
+                equal(baziness.ads().get().id, ad.id);
+                long userId = baziness.players().signIn(new SignInRequest("ad-user", "Android", "Direct")).userId;
+                baziness.ads().seen(ad.id, userId);
+                baziness.ads().click(ad.id, userId);
+                List<?> events = (List<?>) Json.object(control("state", null)).get("adEvents");
+                equal(events.size(), 2);
+                equal(Json.number(Json.object(events.get(0)), "adId"), ad.id);
+                equal(Json.number(Json.object(events.get(0)), "userId"), userId);
+                equal(Json.string(Json.object(events.get(0)), "eventType"), "seen");
+                equal(Json.string(Json.object(events.get(1)), "eventType"), "click");
+                control("fail", "{\"path\":\"/api/content/ad-event\",\"status\":500,\"times\":1}");
+                try { baziness.ads().seen(ad.id, userId); check(false, "500 must fail"); }
+                catch (BazinessException e) { equal(e.status(), 500); }
+                equal(requests("/api/content/ad-event"), 3);
+                try { baziness.ads().click(ad.id, 0); check(false, "invalid user must fail"); }
+                catch (IllegalArgumentException expected) { /* Before the network. */ }
+                equal(requests("/api/content/ad-event"), 3);
+                control("ad", "{\"ad\":{}}");
+                try { baziness.ads().get(); check(false, "malformed ad must fail"); }
+                catch (BazinessException e) { equal(e.operation(), "getAd"); }
+            });
             test("reads a player's campaign, matching a pending install by its fingerprint", () -> {
                 BazinessServer baziness = sdk();
                 long userId = baziness.players().signIn(new SignInRequest("fp", "Android", "Direct")).userId;

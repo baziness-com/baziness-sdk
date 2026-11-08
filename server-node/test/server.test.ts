@@ -483,3 +483,33 @@ describe('baziness pay', () => {
     assert.equal(own.publicConfig().payUrl, 'https://pay.example.com');
   });
 });
+
+
+describe('sponsor ads', () => {
+  it('uses client auth, handles no ad, and counts explicit views/clicks without unsafe retries', async () => {
+    const { baziness } = sdk(hub);
+    assert.equal(await baziness.ads.get(), null);
+    await control(hub, 'ad', { ad: null });
+    assert.equal(await baziness.ads.get(), null);
+    const ad = { id: 4294967297, title: 'Sponsor', imageUrl: 'https://example.test/ad.png', link: 'https://example.test/' };
+    await control(hub, 'ad', { ad });
+    assert.deepEqual(await baziness.ads.get(), ad);
+    const other = sdk(hub, fake.FAKE_OTHER_CLIENT).baziness;
+    assert.equal(await other.ads.get(), null);
+    await control(hub, 'expire-client-tokens', {});
+    assert.deepEqual(await baziness.ads.get(), ad);
+    const { userId } = await baziness.players.signIn(device);
+    await baziness.ads.seen(ad.id, userId);
+    await baziness.ads.click(ad.id, userId);
+    assert.deepEqual((await state()).adEvents, [
+      { adId: ad.id, userId, eventType: 'seen', clientId: 12 },
+      { adId: ad.id, userId, eventType: 'click', clientId: 12 },
+    ]);
+    await control(hub, 'fail', { path: '/api/content/ad-event', status: 500, times: 1 });
+    await assert.rejects(baziness.ads.seen(ad.id, userId), (e: unknown) => e instanceof BazinessError && e.status === 500);
+    await assert.rejects(baziness.ads.click(ad.id, 0), TypeError);
+    assert.equal((await state()).requests.filter(r => r.path === '/api/content/ad-event').length, 3);
+    await control(hub, 'ad', { ad: {} });
+    await assert.rejects(baziness.ads.get(), (e: unknown) => e instanceof BazinessError && e.operation === 'getAd');
+  });
+});

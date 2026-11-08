@@ -110,3 +110,22 @@ within a 15-second budget per call.
 ```bash
 ./build.sh           # 48 tests against the shared fake platform (needs Node), then out/Baziness.Server.<version>.nupkg
 ```
+
+## Sponsor ads
+
+```csharp
+var ad = await baziness.Ads.GetAsync(cancellationToken); // null for no ad (204 or JSON null)
+if (ad != null)
+{
+    // Send ad.Id, ad.Title, ad.ImageUrl and ad.Link to your client.
+    await baziness.Ads.SeenAsync(ad.Id, bazinessUserId, cancellationToken); // once when shown
+    // On a later click of the same ad:
+    await baziness.Ads.ClickAsync(ad.Id, bazinessUserId, cancellationToken);
+}
+```
+
+Server-only calls use the SDK's shared client authentication at `/content/get-ad` and
+`/content/ad-event`. Use the **Baziness user id**, not your game player id. Fetching does not
+count a view; caching is up to the game. Retain the full `long` ad id for tracking. Do not retry
+tracking in your own loop: events are not idempotent, and the SDK does not replay a timeout,
+HTTP 500 or 504. Handle failures independently of gameplay.

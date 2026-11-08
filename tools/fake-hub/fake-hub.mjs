@@ -47,6 +47,8 @@ function freshState() {
     serverEvents: [],
     deviceEvents: [],
     quests: [],
+    ads: new Map(), // client id -> { ad, status }
+    adEvents: [],
     offers: new Map(), // the game's own player id → bundle id
     referralRewards: new Map(), // userId → collectable referral rewards
     clicks: [], // campaign link clicks: { clickId, linkCode, utmSource, utmMedium, utmCampaign, ip, takenBy }
@@ -269,6 +271,10 @@ async function handle(req, res) {
     state.dropAfterConsume = body.times ?? 1;
     return sendJson(res, 200, { ok: true });
   }
+  if (path === '/__control/ad') {
+    state.ads.set(body.clientId ?? FAKE_CLIENT.clientId, { ad: body.ad ?? null, status: body.status ?? 200 });
+    return sendJson(res, 200, { ok: true });
+  }
   if (path === '/__control/offer') {
     state.offers.set(body.playerId, body.bundleId);
     return sendJson(res, 200, { ok: true });
@@ -292,6 +298,7 @@ async function handle(req, res) {
       fingerprints: state.fingerprints,
       users: [...state.users.values()],
       purchases: state.purchases,
+      adEvents: state.adEvents,
       serverEvents: state.serverEvents,
       deviceEvents: state.deviceEvents,
       quests: state.quests,
@@ -446,6 +453,17 @@ async function handle(req, res) {
       (user) => user.clientId === clientId && user.accountId !== null && state.accounts.get(user.accountId)?.phone === phone,
     );
     return sendJson(res, 200, owner ? { isRegistered: true, userId: owner.userId } : { isRegistered: false, userId: null });
+  }
+  if (path === '/api/content/get-ad' && req.method === 'GET') {
+    const slot = state.ads.get(clientId);
+    if (!slot || slot.status === 204) { res.writeHead(204); return res.end(); }
+    return sendJson(res, slot.status, slot.ad);
+  }
+  if (path === '/api/content/ad-event' && req.method === 'POST') {
+    if (!ownUser(body.userId) || body.adId <= 0 || !['seen', 'click'].includes(body.eventType)) return fail(res, 400, 'invalid ad event');
+    state.adEvents.push({ ...body, clientId });
+    res.writeHead(204);
+    return res.end();
   }
   if (path === '/api/client/get-user-offer' && req.method === 'POST') {
     const bundleId = state.offers.get(body.user_id);

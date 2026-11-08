@@ -70,3 +70,24 @@ Report each payment you granted like any other purchase: `purchases().record` wi
 ```bash
 ./build.sh           # javac --release 8 → out/baziness-server-2.1.1.jar, then 18 tests (needs Node for the fake platform)
 ```
+
+## Sponsor ads
+
+The server fetches the ad assigned to its game with the same client authentication as players
+and coins. No extra platform library, token manager or HTTP client is needed.
+
+```java
+Ads.Ad ad = baziness.ads().get(); // null for no ad (204 or JSON null)
+if (ad != null) {
+    // Send ad.id, ad.title, ad.imageUrl and ad.link to your game client.
+    baziness.ads().seen(ad.id, bazinessUserId); // once when shown
+    // Later, when the player clicks the same ad:
+    baziness.ads().click(ad.id, bazinessUserId);
+}
+```
+
+Use the **Baziness user id**, not your game's player id. Fetching does not count a view; caching
+is up to the game. Retain the full `long` ad id for tracking. Events are not idempotent and must
+not be retried in your own loop: the SDK does not replay a timeout, HTTP 500 or 504. Ads and
+tracking use `/content/get-ad` and `/content/ad-event`, not the advertising analytics API.
+Calls block; fetch on a worker and report events in the background so ads cannot stall gameplay.

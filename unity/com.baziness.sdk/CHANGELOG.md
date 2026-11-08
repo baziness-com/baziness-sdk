@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.0] - 2026-11-08
+
+- Server SDKs (Java, Node, .NET): `ads` fetches the game's sponsor ad and reports explicit `seen`
+  and `click` events with the Baziness user id. Uses the SDK's shared client authentication,
+  timeouts and retry policy; tracking is not retried after an uncertain outcome. No old platform
+  library or separate HTTP/auth implementation is needed.
+- Unity and Web share the release version; no device API change. Ad administration and trusted
+  impression/click tracking are server operations.
+
+
 ## 2.3.0 — 2026-11-04
 
 - The page reaches the sheet's top, under the handle, like the web SDK's: the handle strip

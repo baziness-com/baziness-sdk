@@ -1,3 +1,5 @@
+export { Ads } from './ads.js';
+export type { Ad } from './ads.js';
 export { BazinessServer, Offers, Quests, SDK_VERSION } from './server.js';
 export type { BazinessServerOptions, PublicConfig } from './server.js';
 export { ENVIRONMENTS, resolveApiBase, resolvePayBase } from './environment.js';

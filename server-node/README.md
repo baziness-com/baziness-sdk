@@ -71,3 +71,21 @@ and the payment's token as the order id (provider: `payment.gateway`, when you h
 (or `payBaseUrl`) overrides the environment's Pay address.
 
 `npm test` runs 43 tests against the shared fake platform in `../tools/fake-hub`.
+
+## Sponsor ads
+
+```ts
+const ad = await baziness.ads.get(); // null for no ad (204 or JSON null)
+if (ad) {
+  // Send ad.id, ad.title, ad.imageUrl and ad.link to your client.
+  await baziness.ads.seen(ad.id, bazinessUserId); // once when shown
+  // On a later click of the same ad:
+  await baziness.ads.click(ad.id, bazinessUserId);
+}
+```
+
+These are server-only calls using the SDK's shared client authentication, at `/content/get-ad`
+and `/content/ad-event`. Use the **Baziness user id**, not your game player id. Fetching does not
+count a view; caching is up to the game. Do not retry tracking in your own loop: events are not
+idempotent, and the SDK does not replay a timeout, HTTP 500 or 504. Handle failures as optional
+features, independently of gameplay.

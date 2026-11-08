@@ -43,7 +43,7 @@ public sealed record PublicConfig(BazinessEnvironment Environment, string ApiUrl
 /// </summary>
 public sealed class BazinessServer : IAsyncDisposable
 {
-    public const string SdkVersion = "2.3.0";
+    public const string SdkVersion = "2.4.0";
 
     private const int DefaultCloseTimeoutMs = 5000;
 
@@ -89,6 +89,7 @@ public sealed class BazinessServer : IAsyncDisposable
         Purchases = new Purchases(transport, Analytics);
         Quests = new Quests(transport);
         Offers = new Offers(transport);
+        Ads = new Ads(transport);
         _payBase = (string.IsNullOrWhiteSpace(options.PayBaseUrl) ? urls.Pay : options.PayBaseUrl.Trim()).TrimEnd('/');
         _payTransport = new Transport(_payBase, options.Http, http, logger);
     }
@@ -100,6 +101,7 @@ public sealed class BazinessServer : IAsyncDisposable
     public ServerAnalytics Analytics { get; }
     public Quests Quests { get; }
     public Offers Offers { get; }
+    public Ads Ads { get; }
 
     /// <summary>
     /// Baziness Pay for one of your apps (<paramref name="packageName"/>: the app as registered in Pay, Pay's

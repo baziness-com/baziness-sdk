@@ -82,6 +82,39 @@ public class ServerTests(FakeHub hub) : IClassFixture<FakeHub>, IAsyncLifetime
         Assert.Equal(401, error.Status);
     }
 
+    [Fact]
+    public async Task Sponsor_ads_use_client_auth_and_do_not_replay_uncertain_tracking()
+    {
+        await using var baziness = hub.Sdk();
+        Assert.Null(await baziness.Ads.GetAsync());
+        await hub.Control("ad", new { ad = (object?)null });
+        Assert.Null(await baziness.Ads.GetAsync());
+        var ad = new Ad(4294967297, "Sponsor", "https://example.test/ad.png", "https://example.test/");
+        await hub.Control("ad", new { ad });
+        Assert.Equal(ad, await baziness.Ads.GetAsync());
+        await using var other = hub.OtherGame();
+        Assert.Null(await other.Ads.GetAsync());
+        await hub.Control("expire-client-tokens", new { });
+        Assert.Equal(ad, await baziness.Ads.GetAsync());
+        var player = await baziness.Players.SignInAsync(Device);
+        await baziness.Ads.SeenAsync(ad.Id, player.UserId);
+        await baziness.Ads.ClickAsync(ad.Id, player.UserId);
+        var events = (await hub.State()).GetProperty("adEvents").EnumerateArray().ToList();
+        Assert.Equal(2, events.Count);
+        Assert.Equal(ad.Id, events[0].GetProperty("adId").GetInt64());
+        Assert.Equal(player.UserId, events[0].GetProperty("userId").GetInt64());
+        Assert.Equal("seen", events[0].GetProperty("eventType").GetString());
+        Assert.Equal("click", events[1].GetProperty("eventType").GetString());
+        await hub.Control("fail", new { path = "/api/content/ad-event", status = 500, times = 1 });
+        var error = await Assert.ThrowsAsync<BazinessException>(() => baziness.Ads.SeenAsync(ad.Id, player.UserId));
+        Assert.Equal(500, error.Status);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => baziness.Ads.ClickAsync(ad.Id, 0));
+        Assert.Equal(3, await hub.Requests("/api/content/ad-event"));
+        await hub.Control("ad", new { ad = new { } });
+        var malformed = await Assert.ThrowsAsync<BazinessException>(() => baziness.Ads.GetAsync());
+        Assert.Equal("getAd", malformed.Operation);
+    }
+
     // ── Players ──
 
     [Fact]

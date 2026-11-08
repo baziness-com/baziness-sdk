@@ -34,6 +34,7 @@ export interface HubState {
   serverEvents: Array<{ eventId: string; eventKey: string; userId: number; sessionId?: string; value?: number; props?: Record<string, string> }>;
   deviceEvents: unknown[];
   quests: unknown[];
+  adEvents: Array<{ adId: number; userId: number; eventType: string; clientId: number }>;
   payments: Array<{ pname: string; uid: number; sku: string; token: string; status: string }>;
   coins: Record<string, number>;
   requests: Array<{ method: string; path: string }>;

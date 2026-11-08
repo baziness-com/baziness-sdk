@@ -1,4 +1,5 @@
 import { ServerAnalytics, type AnalyticsOptions } from './analytics.js';
+import { Ads } from './ads.js';
 import { ClientAuth } from './clientAuth.js';
 import { Coins } from './coins.js';
 import { ENVIRONMENTS, isEnvironment, resolveApiBase, resolvePayBase, type BazinessEnvironment } from './environment.js';
@@ -8,7 +9,7 @@ import { Players } from './players.js';
 import { Purchases } from './purchases.js';
 import type { WireOffer } from './wire.js';
 
-export const SDK_VERSION = '2.3.0';
+export const SDK_VERSION = '2.4.0';
 
 export interface BazinessServerOptions {
   /** `staging` while you integrate and test; `production` after the platform team's review. */
@@ -53,6 +54,7 @@ export class BazinessServer {
   readonly analytics: ServerAnalytics;
   readonly quests: Quests;
   readonly offers: Offers;
+  readonly ads: Ads;
 
   private readonly apiBase: string;
   private readonly payBase: string;
@@ -89,6 +91,7 @@ export class BazinessServer {
     this.purchases = new Purchases(transport, this.analytics);
     this.quests = new Quests(transport);
     this.offers = new Offers(transport);
+    this.ads = new Ads(transport);
     this.payBase = resolvePayBase(options.environment, options.payBaseUrl);
     this.payTransport = new Transport(this.payBase, options.http ?? {}, fetchImpl, logger);
   }
