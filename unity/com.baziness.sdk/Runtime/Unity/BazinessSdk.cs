@@ -78,6 +78,9 @@ namespace Baziness
         // Trackers answer on their own threads, often before Initialize: kept here until the runner applies them.
         private static readonly object trackerLock = new object();
         private static readonly List<KeyValuePair<string, Attribution>> trackerAnswers = new List<KeyValuePair<string, Attribution>>();
+        // Tracker name -> that tracker's id of this device, waiting for the signed-in user they are sent for.
+        private static readonly Dictionary<string, string> trackerDevices = new Dictionary<string, string>();
+        private const string TrackerDeviceKey = "baziness.tracker.device.";
 
         public static bool IsInitialized { get; private set; }
         public static BazinessEnvironment Environment => options?.Environment ?? BazinessEnvironment.Staging;
@@ -388,10 +391,59 @@ namespace Baziness
             });
         }
 
+        /// <summary>
+        /// Tell Baziness the id an attribution tracker gave this device, so Baziness can read the install's
+        /// campaign from that tracker's own records. Needed for trackers that never tell the app their
+        /// attribution (AppMetrica: Google Ads installs, APK installs, links without a deep link). Call it
+        /// whenever the tracker gives the id, before or after <see cref="Initialize"/>, on any thread; it is
+        /// sent once per player (event <c>baziness:tracker:device</c>).
+        /// <code>
+        /// AppMetrica.RequestStartupParams((result, error) =>
+        /// {
+        ///     if (!string.IsNullOrEmpty(result?.DeviceId)) BazinessSdk.ReportTrackerDevice("appmetrica", result.DeviceId);
+        /// }, new[] { StartupParamsKey.AppMetricaDeviceID });
+        /// </code>
+        /// </summary>
+        /// <param name="tracker">Which tracker the id belongs to, e.g. <c>appmetrica</c>.</param>
+        /// <param name="deviceId">The tracker's own device id (AppMetrica device id), not an advertising id.</param>
+        public static void ReportTrackerDevice(string tracker, string deviceId)
+        {
+            if (string.IsNullOrWhiteSpace(tracker) || string.IsNullOrWhiteSpace(deviceId)) return;
+            lock (trackerLock) trackerDevices[tracker.Trim().ToLowerInvariant()] = deviceId.Trim();
+        }
+
+        // On the main thread (the runner). Waits for the session: the event must carry the player it is for,
+        // and that player is what "sent once" is remembered against.
+        private static void ApplyTrackerDevices()
+        {
+            var userId = sessions?.Current?.UserId ?? 0;
+            if (userId <= 0) return;
+            KeyValuePair<string, string>[] devices;
+            lock (trackerLock)
+            {
+                if (trackerDevices.Count == 0) return;
+                devices = new List<KeyValuePair<string, string>>(trackerDevices).ToArray();
+                trackerDevices.Clear();
+            }
+            foreach (var pair in devices)
+            {
+                var sent = userId + ":" + pair.Value;
+                if (PlayerPrefs.GetString(TrackerDeviceKey + pair.Key, "") == sent) continue;
+                var recorded = Analytics.Record("baziness:tracker:device", null, new Dictionary<string, object>
+                {
+                    ["tracker"] = pair.Key, ["device_id"] = pair.Value
+                });
+                if (!recorded) continue;
+                PlayerPrefs.SetString(TrackerDeviceKey + pair.Key, sent);
+                PlayerPrefs.Save();
+            }
+        }
+
         // On the main thread (the runner), once initialized.
         internal static void ApplyTrackerAnswers()
         {
             if (!IsInitialized) return;
+            ApplyTrackerDevices();
             KeyValuePair<string, Attribution>[] answers;
             lock (trackerLock)
             {

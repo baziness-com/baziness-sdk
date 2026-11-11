@@ -86,6 +86,7 @@ sprites, sizes, positions, timings, canvas sorting order) in the settings asset 
 | `OpenCheckoutAsync`, `FindPaymentAsync`, `Pay` | Baziness Pay: open the checkout page, find the payment when the player says they paid |
 | `Analytics.PurchaseStarted / PurchaseFailed / AdImpression / AdRevenue / TutorialBegin / TutorialComplete / LevelStart / LevelComplete / LevelFail / ResourceEarn / ResourceSpend` | player analytics, queued in a file and sent in batches |
 | `ReportTrackerAttribution` | call it from every attribution SDK's callback (Metrix, AppMetrica, …) with what it reported, before or after `Initialize`, on any thread; the first campaign is kept, organic answers skipped |
+| `ReportTrackerDevice` | the id an attribution tracker gave the device (`"appmetrica"`, AppMetrica device id from `AppMetrica.RequestStartupParams`); Baziness uses it to read the install's campaign from the tracker's own records (Google Ads, APK installs, links without a deep link). Before or after `Initialize`, on any thread; sent once per player |
 | `HandleDeepLink` (automatic), `SetInstallReferrer`, `SetCampaignAttribution` | first-touch attribution: deep-link `utm_*` / `bz_lc` / `bz_click`, store referrer, the campaign your attribution SDK reports |
 | `Device`, `Attribution` | what goes to your server with every session request |
 

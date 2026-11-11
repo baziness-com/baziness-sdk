@@ -6,6 +6,16 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-11
+
+- **Unity: `BazinessSdk.ReportTrackerDevice(tracker, deviceId)`**: tell Baziness the id an attribution
+  tracker gave the device (AppMetrica device id). AppMetrica never tells the app which campaign an install
+  came from, so Baziness reads it from AppMetrica's own records and matches it by this id; this is what
+  attributes Google Ads installs, APK installs and tracking links without a deep link. Callable before or
+  after `Initialize`, on any thread; sent once per player as the event `baziness:tracker:device`
+  (props `tracker`, `device_id`). Keep calling `ReportTrackerAttribution` too.
+- No change in the other SDKs: they share one version.
+
 ## [2.4.0] - 2026-11-08
 
 - Server SDKs (Java, Node, .NET): `ads` fetches the game's sponsor ad and reports explicit `seen`
