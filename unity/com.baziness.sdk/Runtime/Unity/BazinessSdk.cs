@@ -400,8 +400,8 @@ namespace Baziness
         /// <code>
         /// AppMetrica.RequestStartupParams((result, error) =>
         /// {
-        ///     if (!string.IsNullOrEmpty(result?.DeviceId)) BazinessSdk.ReportTrackerDevice("appmetrica", result.DeviceId);
-        /// }, new[] { StartupParamsKey.AppMetricaDeviceID });
+        ///     if (!string.IsNullOrEmpty(result?.DeviceIdHash)) BazinessSdk.ReportTrackerDevice("appmetrica", result.DeviceIdHash);
+        /// }, new[] { StartupParamsKey.AppMetricaDeviceIDHash });
         /// </code>
         /// </summary>
         /// <param name="tracker">Which tracker the id belongs to, e.g. <c>appmetrica</c>.</param>

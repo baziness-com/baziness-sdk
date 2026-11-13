@@ -6,6 +6,9 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Unity docs: `ReportTrackerDevice` takes AppMetrica's `DeviceIdHash` (`StartupParamsKey.AppMetricaDeviceIDHash`), the
+  `appmetrica_device_id` of its exports; the 2.5.0 example used `DeviceId`, which never matches.
+
 ## [2.5.0] - 2026-11-11
 
 - **Unity: `BazinessSdk.ReportTrackerDevice(tracker, deviceId)`**: tell Baziness the id an attribution
