@@ -1,15 +1,16 @@
 import { DeviceAnalytics, type DeviceAnalyticsOptions } from './analytics.js';
 import type { BackendSession, GameBackend } from './backend.js';
-import { InstallCampaign } from './campaign.js';
+import { InstallCampaign, type RecordOutcome } from './campaign.js';
 import { CoinBalance, ReferralRewards } from './coins.js';
 import { collectDevice, refineDevice, SDK_VERSION, type DeviceInfo } from './device.js';
 import { ENVIRONMENTS, type BazinessEnvironment } from './environment.js';
-import { readLaunch, type Attribution, type LaunchParams } from './launch.js';
+import { readLaunch, saveAttribution, type Attribution, type LaunchParams } from './launch.js';
 import { pageUrl, parsePageMessage, type PageMessage, type PageName } from './pages.js';
 import { PageOverlay, type OverlayOptions } from './sheet.js';
 import { BazinessPay } from './pay.js';
 import { SessionManager } from './session.js';
 import { browserStore, uuid, type KeyValueStore } from './storage.js';
+import { hasCampaign, TRACKER_ANSWER_EVENT, trackerAttribution, TrackerDevices } from './tracker.js';
 
 export interface BazinessWebOptions {
   /** `staging` while you integrate; `production` after the platform team's review. */
@@ -71,8 +72,6 @@ type Handler<T> = (payload: T) => void;
 export class BazinessWeb {
   readonly environment: BazinessEnvironment;
   readonly device: DeviceInfo;
-  /** First-touch attribution of this browser, or null when it came with none. */
-  readonly attribution: Attribution | null;
   readonly launch: LaunchParams;
   readonly analytics: DeviceAnalytics;
   readonly coins: CoinBalance;
@@ -83,6 +82,9 @@ export class BazinessWeb {
   readonly pay: BazinessPay;
 
   private readonly options: BazinessWebOptions;
+  private readonly store: KeyValueStore;
+  private readonly trackerDevices: TrackerDevices;
+  private firstTouch: Attribution | null;
   private readonly apiBase: string;
   private readonly pagesBase: string;
   private readonly pagesOrigin: string;
@@ -110,7 +112,7 @@ export class BazinessWeb {
     this.apiBase = (options.apiBaseUrl ?? urls.api).replace(/\/+$/, '');
     this.pagesBase = (options.pagesBaseUrl ?? urls.pages).replace(/\/+$/, '');
     this.pagesOrigin = new URL(this.pagesBase).origin;
-    const store = options.storage ?? browserStore();
+    const store = (this.store = options.storage ?? browserStore());
     const fetchImpl = options.fetch ?? fetch.bind(globalThis);
 
     const href = options.href ?? (typeof location === 'undefined' ? 'http://localhost/' : location.href);
@@ -121,7 +123,7 @@ export class BazinessWeb {
       history.replaceState(history.state, '', cleanHref);
     }
     this.launch = launch;
-    this.attribution = launch.attribution;
+    this.firstTouch = launch.attribution;
     this.device = collectDevice(store, options.appVersion);
 
     this.sessions = new SessionManager(options.backend, this.device, launch);
@@ -135,9 +137,12 @@ export class BazinessWeb {
     this.pay = new BazinessPay(options.payBaseUrl ?? urls.pay, options.payPackageName ?? options.packageName, fetchImpl);
     this.overlay = new PageOverlay(options.overlay);
     this.refined = refineDevice(this.device);
+    this.trackerDevices = new TrackerDevices(this.analytics, store);
+    for (const [tracker, id] of Object.entries(launch.trackerDevices ?? {})) this.trackerDevices.report(tracker, id);
 
     this.sessions.onChange((session) => {
       if (session?.sessionId) this.analytics.sessionId = session.sessionId;
+      this.trackerDevices.send(session?.userId);
       this.emit('session', session);
     });
     this.listen();
@@ -150,6 +155,74 @@ export class BazinessWeb {
   async start(): Promise<BackendSession> {
     await this.refined;
     return this.sessions.get();
+  }
+
+  /**
+   * First-touch attribution of this install: the landing's campaign parameters or referrer, or what
+   * {@link setInstallReferrer} and {@link reportTrackerAttribution} added; null when it came with none.
+   */
+  get attribution(): Attribution | null {
+    return this.firstTouch;
+  }
+
+  /**
+   * Tell Baziness the id an attribution tracker gave this device, so Baziness can read the install's
+   * campaign from that tracker's own records. Needed for trackers that never tell the app their
+   * attribution (AppMetrica: Google Ads installs, APK installs, links without a deep link). A web game
+   * gets it from the app that wraps it (a JavaScript bridge in a WebView, a Capacitor plugin); a wrapper
+   * that cannot call JavaScript (a Trusted Web Activity) opens the game with `?appmetrica_device_id=`
+   * instead, which the SDK reads for you. Call it whenever the id comes, before or after {@link start};
+   * it is sent once per player (event `baziness:tracker:device`).
+   *
+   * ```ts
+   * // Android wrapper: AppMetrica.requestStartupParams(…, listOf(StartupParamsCallback.APPMETRICA_DEVICE_ID_HASH))
+   * // → webView.evaluateJavascript("onAppMetricaDevice('" + result.deviceIdHash + "')", null)
+   * window.onAppMetricaDevice = (id: string) => baziness.reportTrackerDevice('appmetrica', id);
+   * ```
+   * @param tracker Which tracker the id belongs to, e.g. `appmetrica`.
+   * @param deviceId The tracker's own device id (AppMetrica: the device id **hash**, the
+   *   `appmetrica_device_id` of its exports), never an advertising id.
+   */
+  reportTrackerDevice(tracker: string, deviceId: string): void {
+    if (this.trackerDevices.report(tracker, deviceId)) this.trackerDevices.send(this.sessions.session?.userId);
+  }
+
+  /**
+   * Pass every attribution SDK's answer here as it comes (Metrix, AppMetrica, Adjust, …), for example
+   * from the wrapper app's bridge. Give what the tracker gave: UTMs, AppMetrica's deferred deep link
+   * parameters (they carry a Baziness link's `bz_lc` and `bz_click`), or its own field names (`source`,
+   * `campaign`, `adset`, `ad`; Metrix's `acquisitionSource`, …). The install keeps its first campaign:
+   * a Baziness link or UTMs in the address come first, then the first tracker that answers; empty and
+   * organic answers are skipped. Sent with the first session, or straight to Baziness after it
+   * (accepted within 24 h of the first open). Never rejects: a failure is logged.
+   *
+   * ```ts
+   * // AppMetrica (Android wrapper): requestDeferredDeeplinkParameters → the parameters as JSON
+   * window.onAppMetricaDeeplink = (json: string) => baziness.reportTrackerAttribution('appmetrica', JSON.parse(json));
+   * ```
+   * @param tracker Which SDK answered, e.g. `metrix` or `appmetrica`.
+   */
+  reportTrackerAttribution(tracker: string, values: Record<string, string | null | undefined>): Promise<void> {
+    const answer = trackerAttribution(values);
+    if (!answer) return Promise.resolve();
+    this.analytics.record(TRACKER_ANSWER_EVENT, {
+      props: { tracker: tracker?.trim().toLowerCase() ?? '', source: answer.utmSource, campaign: answer.utmCampaign },
+    });
+    if (hasCampaign(this.firstTouch)) return Promise.resolve();
+    const { landedAt, ...campaign } = answer;
+    const base = this.firstTouch ? { referrer: this.firstTouch.referrer, landedAt: this.firstTouch.landedAt } : { landedAt };
+    return this.recordLate({ ...base, ...campaign });
+  }
+
+  /**
+   * The raw store install referrer, for a web game shipped inside a store app (Google Play Install
+   * Referrer API, Cafe Bazaar / Myket referrer SDKs in the wrapper). Ignored once the install has a
+   * referrer. Sent like {@link reportTrackerAttribution}; never rejects.
+   */
+  setInstallReferrer(referrer: string): Promise<void> {
+    const value = referrer?.trim();
+    if (!value || this.firstTouch?.referrer) return Promise.resolve();
+    return this.recordLate({ ...(this.firstTouch ?? { landedAt: new Date().toISOString() }), referrer: value.slice(0, 1024) });
   }
 
   /** The current session, if any. */
@@ -275,6 +348,24 @@ export class BazinessWeb {
     this.closePage();
     this.analytics.stop();
     for (const cleanup of this.cleanups.splice(0)) cleanup();
+  }
+
+  private async recordLate(attribution: Attribution): Promise<void> {
+    this.firstTouch = attribution;
+    saveAttribution(this.store, attribution);
+    this.sessions.useAttribution(attribution);
+    // Not asked yet: it goes with the first session request. Asked: that request may already be on its
+    // way without it, so it goes to Baziness once there is a session.
+    if (!this.sessions.started) return;
+    let outcome: RecordOutcome;
+    try {
+      await this.sessions.get();
+      outcome = await this.campaign.record(attribution);
+    } catch (error) {
+      console.warn('[baziness] attribution not recorded:', (error as Error)?.message ?? error);
+      return;
+    }
+    if (outcome === 'window_closed') console.warn('[baziness] attribution not recorded: more than 24 h after the first open');
   }
 
   private pageClosed(page: string): void {

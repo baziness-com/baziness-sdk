@@ -1,5 +1,9 @@
 import type { TokenSource } from './analytics.js';
 import type { DeviceInfo } from './device.js';
+import type { Attribution } from './launch.js';
+
+/** What Baziness did with an attribution sent after the first session. */
+export type RecordOutcome = 'applied' | 'already_final' | 'window_closed' | 'no_campaign_signal' | '';
 
 /**
  * The install's campaign as Baziness knows it. An install that came with no campaign (no campaign
@@ -59,20 +63,38 @@ export class InstallCampaign {
 
   /** Ask when the game starts; the answer is final once `status` is no longer `pending`. */
   async get(): Promise<Campaign> {
+    return fromWire((await this.post('/analytics/attribution/resolve', {}, 'campaign')) as WireCampaign);
+  }
+
+  /**
+   * Send attribution learned after the first session (a tracker's answer, the store referrer). Accepted
+   * within 24 h of the first open, once: the first campaign is final. With no campaign in it, Baziness
+   * still matches the install by this device's fingerprint.
+   */
+  async record(attribution: Attribution): Promise<RecordOutcome> {
+    const { campaignCode, ...rest } = attribution;
+    // The platform calls the campaign link code `linkCode` (the sign-in link code never comes here).
+    const answer = (await this.post('/analytics/attribution', { ...rest, linkCode: campaignCode }, 'attribution')) as { outcome?: string };
+    return (answer?.outcome ?? '') as RecordOutcome;
+  }
+
+  private async post(path: string, fields: Record<string, unknown>, what: string): Promise<unknown> {
     const body = JSON.stringify(
-      Object.fromEntries(Object.entries({ deviceModel: this.device.model, osVersion: this.device.osVersion }).filter(([, v]) => v)),
+      Object.fromEntries(
+        Object.entries({ ...fields, deviceModel: this.device.model, osVersion: this.device.osVersion }).filter(([, v]) => v),
+      ),
     );
     for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await this.fetchImpl(`${this.apiBase}/analytics/attribution/resolve`, {
+      const response = await this.fetchImpl(`${this.apiBase}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await this.token(attempt > 0)}` },
         body,
       });
       if (response.status === 401 && attempt === 0) continue;
-      if (!response.ok) throw new Error(`Baziness: campaign HTTP ${response.status}`);
-      return fromWire((await response.json()) as WireCampaign);
+      if (!response.ok) throw new Error(`Baziness: ${what} HTTP ${response.status}`);
+      return response.json();
     }
-    throw new Error('Baziness: campaign unauthorized');
+    throw new Error(`Baziness: ${what} unauthorized`);
   }
 }
 

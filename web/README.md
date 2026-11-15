@@ -2,7 +2,8 @@
 
 Baziness for the **player's browser** in a web game: Baziness pages (sign-in, profile, the
 «انتخاب جایزه» reward shop, your game offer) in an overlay, the Gita coin balance, first-touch
-attribution, device info and player analytics. It holds no secret: sessions and link codes come
+attribution (with your wrapper app's tracker: AppMetrica device id, deferred deep links), device info and
+player analytics. It holds no secret: sessions and link codes come
 from your game server, which uses `@baziness/server`.
 
 ## Install
@@ -38,6 +39,29 @@ reduced User-Agent hides them) to the campaign link click it most likely followe
 `matchType: 'probabilistic'`. A link, referrer or APK campaign is `deterministic` and always wins.
 `start()` sends that model and OS version to your server too (`SessionRequest.device`), so your
 server can ask with `players.campaign` instead.
+
+## Attribution from the app that wraps your game
+
+A web game shipped inside an app (a WebView, Capacitor, a Trusted Web Activity) has its attribution SDK
+(AppMetrica, Metrix) in the app. Pass what it gives to the page:
+
+```ts
+// The AppMetrica device id: Android AppMetrica.requestStartupParams(…, APPMETRICA_DEVICE_ID_HASH) → deviceIdHash.
+// It is the appmetrica_device_id of AppMetrica's exports and postbacks; DeviceId is another value.
+baziness.reportTrackerDevice('appmetrica', deviceIdHash);  // before or after start(); sent once per player
+
+// A tracker's answer: AppMetrica's deferred deep link parameters (bz_lc, bz_click, UTMs), Metrix's acquisition*.
+await baziness.reportTrackerAttribution('appmetrica', parameters);
+await baziness.setInstallReferrer(playReferrer);           // the store install referrer, raw
+```
+
+A wrapper that cannot call JavaScript (a TWA) opens the game with `?appmetrica_device_id=<hash>`: the SDK
+reads it and removes it from the address, like the UTMs. The device id lets Baziness match AppMetrica's own
+install records (Google Ads, APK installs, links without a deep link) to this install. The install keeps
+its first campaign: UTMs or a Baziness link in the address, then the first tracker that answers; empty and
+organic answers are skipped. Answers before the first session go with it to your server; later ones go
+straight to Baziness (accepted within 24 h of the first open). The two `report…` calls and
+`setInstallReferrer` never throw.
 
 ## Baziness Pay
 
@@ -88,4 +112,4 @@ A page's text to share opens the browser's share sheet; where there is none it g
 
 Without a bundler: `<script src="baziness.global.js"></script>` → `window.Baziness.BazinessWeb`.
 
-`npm test` (14 tests against `../tools/fake-hub`), `npm run build` (ESM in `dist/`, 25 KB minified global build).
+`npm test` (22 tests against `../tools/fake-hub`), `npm run build` (ESM in `dist/`, 38 KB minified global build).

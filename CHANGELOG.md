@@ -6,8 +6,28 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-15
+
+- **Web: the attribution calls Unity has**, for web games shipped inside an app (a WebView, Capacitor or a
+  Trusted Web Activity) whose attribution SDK runs in the app:
+  - `reportTrackerDevice(tracker, deviceId)`: the AppMetrica device id (its `DeviceIdHash`), sent once per
+    player as `baziness:tracker:device`, so Baziness can match AppMetrica's own install records (Google Ads,
+    APK installs, links without a deep link) and its install postbacks. Callable before or after `start()`.
+  - The launch parameter `appmetrica_device_id`, read like the UTMs and removed from the address, for wrappers
+    that cannot call JavaScript (a TWA opens the game with it).
+  - `reportTrackerAttribution(tracker, values)`: a tracker's answer (AppMetrica deferred deep link parameters
+    with `bz_lc` / `bz_click`, Metrix's `acquisition*`, UTMs), recorded as `baziness:attribution:tracker`; the
+    first campaign wins, empty and organic answers are skipped.
+  - `setInstallReferrer(referrer)`: the store install referrer from the wrapper.
+  - Before the first session request they go with it to your server; after it, straight to Baziness
+    (`POST analytics/attribution`, accepted within 24 h of the first open). `attribution` now shows what they added.
+- **Unity: a campaign link code reported after the first session reaches Baziness**: `SetInstallReferrer`,
+  `SetCampaignAttribution` and `ReportTrackerAttribution` sent it as `campaignCode`, a name the platform does
+  not read, so a `bz_lc` from AppMetrica's deferred deep link was lost when it came after the session (its
+  `bz_click` went through). It is sent as `linkCode` now.
 - Unity docs: `ReportTrackerDevice` takes AppMetrica's `DeviceIdHash` (`StartupParamsKey.AppMetricaDeviceIDHash`), the
   `appmetrica_device_id` of its exports; the 2.5.0 example used `DeviceId`, which never matches.
+- No change in the server SDKs: they share one version.
 
 ## [2.5.0] - 2026-11-11
 

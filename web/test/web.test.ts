@@ -10,9 +10,11 @@ import { readLaunch } from '../src/launch.js';
 import { pageUrl, parsePageMessage } from '../src/pages.js';
 import { dragCloses, shadeFor } from '../src/sheet.js';
 import { BazinessPay } from '../src/pay.js';
+import { BazinessWeb } from '../src/baziness.js';
+import { trackerAttribution } from '../src/tracker.js';
 import { SessionManager } from '../src/session.js';
 import { memoryStore } from '../src/storage.js';
-import type { GameBackend } from '../src/backend.js';
+import type { GameBackend, SessionRequest } from '../src/backend.js';
 
 interface FakeHub {
   port: number;
@@ -106,6 +108,36 @@ describe('launch parameters', () => {
 
   it('leaves a clean address alone', () => {
     assert.equal(readLaunch('https://game.example/play', '', memoryStore()).cleanHref, null);
+  });
+
+  it('takes the AppMetrica device id a wrapper app opened the game with, and cleans the address', () => {
+    const { launch, cleanHref } = readLaunch('https://game.example/play?appmetrica_device_id=1331767&level=3', '', memoryStore());
+    assert.deepEqual(launch.trackerDevices, { appmetrica: '1331767' });
+    assert.equal(launch.attribution, null, 'a tracker id is not a campaign');
+    assert.equal(cleanHref, 'https://game.example/play?level=3');
+  });
+});
+
+describe('tracker answers', () => {
+  const now = new Date('2026-11-15T08:00:00Z');
+
+  it('reads UTMs, Baziness link parameters and the trackers\' own field names', () => {
+    assert.deepEqual(trackerAttribution({ bz_lc: 'c1', bz_click: 'k9', utm_source: 'google', utm_campaign: 'yatzy-nov' }, now), {
+      utmSource: 'google', utmCampaign: 'yatzy-nov', campaignCode: 'c1', clickId: 'k9', landedAt: '2026-11-15T08:00:00.000Z',
+    });
+    assert.deepEqual(
+      trackerAttribution({ acquisitionSource: 'tapsell', acquisitionCampaign: 'nov', acquisitionAdSet: 'set-2', acquisitionAd: 'ad-7' }, now),
+      { utmSource: 'tapsell', utmCampaign: 'nov', utmContent: 'set-2', utmTerm: 'ad-7', landedAt: '2026-11-15T08:00:00.000Z' },
+    );
+    assert.equal(trackerAttribution({ Media_Source: 'Google' }, now)?.utmSource, 'Google', 'keys in any case');
+  });
+
+  it('skips empty and organic answers, but not an organic-looking Baziness link', () => {
+    assert.equal(trackerAttribution(null, now), null);
+    assert.equal(trackerAttribution({ utm_source: ' ', utm_medium: '' }, now), null);
+    assert.equal(trackerAttribution({ utm_source: 'google-play', utm_medium: 'organic' }, now), null);
+    assert.equal(trackerAttribution({ source: 'Organic' }, now), null);
+    assert.equal(trackerAttribution({ utm_medium: 'organic', bz_lc: 'c1' }, now)?.campaignCode, 'c1');
   });
 });
 
@@ -285,5 +317,97 @@ describe('baziness pay', () => {
     assert.equal(payment?.token, paid.token);
     assert.equal(payment?.amount, 49000);
     await assert.rejects(new BazinessPay(payBase(), 'com.unknown.game', fetch).findPayment('gems_100', 7), /registered in Baziness Pay/);
+  });
+});
+
+describe('attribution from the wrapper app', () => {
+  type State = {
+    users: Array<{ userId: number; attribution?: Record<string, string> }>;
+    deviceEvents: Array<{ eventKey: string; userId: number; props?: Record<string, string> }>;
+    requests: Array<{ path: string }>;
+  };
+  const posts = (state: State) => state.requests.filter((r) => r.path === '/api/analytics/attribution').length;
+
+  async function game(href = 'https://game.example/play') {
+    const server = await gameServer();
+    const requests: SessionRequest[] = [];
+    const backend: GameBackend = {
+      ...server.backend,
+      session: (request) => {
+        requests.push(structuredClone(request));
+        return server.backend.session(request);
+      },
+    };
+    const baziness = BazinessWeb.init({
+      environment: 'staging', packageName: 'com.example.game', backend, href,
+      apiBaseUrl: hub.apiBase, storage: memoryStore(), fetch, analytics: { flushIntervalMs: 60_000 },
+    });
+    return { baziness, requests, userId: server.userId };
+  }
+
+  it('sends the AppMetrica device id once per player, from a call or the launch address', async () => {
+    const { baziness, userId } = await game('https://game.example/play?appmetrica_device_id=from-launch');
+    baziness.reportTrackerDevice('AppMetrica', ' 1331767 '); // replaces the launch's: the same tracker
+    assert.equal(baziness.analytics.pending, 0, 'waits for the player it belongs to');
+    await baziness.start();
+    const first = userId();
+    assert.equal(baziness.analytics.pending, 1);
+    baziness.reportTrackerDevice('appmetrica', '1331767');
+    await baziness.analytics.flush();
+    await baziness.refreshSession(); // the fake game server makes a new player each time: sent for them too
+    baziness.reportTrackerDevice('appmetrica', '1331767');
+    await baziness.analytics.flush();
+    baziness.destroy();
+
+    const state = await control<State>('state');
+    const sent = state.deviceEvents.filter((e) => e.eventKey === 'baziness:tracker:device');
+    assert.deepEqual(sent.map((e) => e.userId), [first, userId()]);
+    assert.notEqual(first, userId());
+    for (const event of sent) assert.deepEqual(event.props, { tracker: 'appmetrica', device_id: '1331767' });
+  });
+
+  it('sends a tracker answer that comes before start with the first session', async () => {
+    const { baziness, requests } = await game();
+    await baziness.reportTrackerAttribution('appmetrica', { bz_lc: 'c1', bz_click: 'k9', utm_source: 'google' });
+    await baziness.start();
+    await baziness.analytics.flush();
+    baziness.destroy();
+
+    assert.equal(requests[0]!.attribution?.campaignCode, 'c1');
+    assert.equal(baziness.attribution?.utmSource, 'google');
+    const state = await control<State>('state');
+    assert.equal(posts(state), 0, 'nothing sent to Baziness directly');
+    const answers = state.deviceEvents.filter((e) => e.eventKey === 'baziness:attribution:tracker');
+    assert.deepEqual(answers.map((e) => e.props), [{ tracker: 'appmetrica', source: 'google' }]);
+  });
+
+  it('sends a later answer to Baziness once, and keeps the first campaign', async () => {
+    const { baziness, userId } = await game();
+    await baziness.start();
+    await baziness.setInstallReferrer('utm_source=cafebazaar&utm_medium=store');
+    await baziness.reportTrackerAttribution('metrix', { acquisitionSource: 'tapsell', acquisitionCampaign: 'nov' });
+    await baziness.reportTrackerAttribution('appmetrica', { bz_lc: 'c2', utm_source: 'google' });
+    await baziness.reportTrackerAttribution('appmetrica', { utm_source: 'google', utm_medium: 'organic' });
+    await baziness.setInstallReferrer('ignored: the install has one');
+    baziness.destroy();
+
+    assert.equal(baziness.attribution?.utmSource, 'tapsell', 'the first tracker that answers wins');
+    assert.equal(baziness.attribution?.referrer, 'utm_source=cafebazaar&utm_medium=store');
+    const state = await control<State>('state');
+    assert.equal(posts(state), 2, 'the referrer, then the first campaign; the rest stay on the device');
+    const user = state.users.find((u) => u.userId === userId());
+    assert.equal(user?.attribution?.referrer, 'utm_source=cafebazaar&utm_medium=store', 'the fake keeps the first');
+  });
+
+  it('sends the campaign link code as the platform names it', async () => {
+    const { baziness, userId } = await game();
+    await baziness.start();
+    await baziness.reportTrackerAttribution('appmetrica', { bz_lc: 'c3', bz_click: 'k3' });
+    baziness.destroy();
+    const state = await control<State>('state');
+    const attribution = state.users.find((u) => u.userId === userId())?.attribution;
+    assert.equal(attribution?.linkCode, 'c3');
+    assert.equal(attribution?.clickId, 'k3');
+    assert.equal(attribution?.campaignCode, undefined);
   });
 });

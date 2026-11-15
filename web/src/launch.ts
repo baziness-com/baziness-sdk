@@ -11,7 +11,10 @@ export interface Attribution {
   campaignCode?: string;
   /** Campaign click id (`bz_click`). */
   clickId?: string;
-  /** `document.referrer` of the first landing, when it was another site. */
+  /**
+   * `document.referrer` of the first landing, when it was another site, or the store install referrer
+   * a wrapper app passed (`setInstallReferrer`).
+   */
   referrer?: string;
   landedAt?: string;
 }
@@ -24,9 +27,16 @@ export interface LaunchParams {
    */
   linkCode: string | null;
   attribution: Attribution | null;
+  /**
+   * Ids attribution trackers gave this device, by tracker, from a wrapper app that opened the game with
+   * them (`appmetrica_device_id`): what `reportTrackerDevice` takes, for wrappers that cannot call it.
+   */
+  trackerDevices?: Record<string, string>;
 }
 
 const ATTRIBUTION_KEY = 'baziness:attribution';
+/** Launch parameters a wrapper app adds for a tracker's id of this device, and the tracker each names. */
+const TRACKER_DEVICE_PARAMS: Array<[string, string]> = [['appmetrica_device_id', 'appmetrica']];
 const UTM: Array<[string, keyof Attribution]> = [
   ['utm_source', 'utmSource'],
   ['utm_medium', 'utmMedium'],
@@ -37,7 +47,7 @@ const UTM: Array<[string, keyof Attribution]> = [
   ['bz_click', 'clickId'],
 ];
 /** Removed from the address after reading: a code works once, and none of these belong in history. */
-const CONSUMED = ['linkCode', 'linkedToken', ...UTM.map(([param]) => param)];
+const CONSUMED = ['linkCode', 'linkedToken', ...UTM.map(([param]) => param), ...TRACKER_DEVICE_PARAMS.map(([param]) => param)];
 
 /**
  * Reads the launch parameters once, keeps the first-touch attribution and returns the address
@@ -59,12 +69,17 @@ export function readLaunch(
     if (value) landing[field] = value;
   }
   const externalReferrer = referrer && !sameSite(referrer, url) ? referrer : undefined;
+  const trackerDevices: Record<string, string> = {};
+  for (const [param, tracker] of TRACKER_DEVICE_PARAMS) {
+    const value = params.get(param)?.trim();
+    if (value) trackerDevices[tracker] = value.slice(0, 128);
+  }
 
   let attribution = readJson<Attribution>(store, ATTRIBUTION_KEY);
   if (!attribution && (Object.keys(landing).length > 0 || externalReferrer)) {
     attribution = { ...landing, landedAt: now.toISOString() };
     if (externalReferrer) attribution.referrer = externalReferrer.slice(0, 512);
-    store.set(ATTRIBUTION_KEY, JSON.stringify(attribution));
+    saveAttribution(store, attribution);
   }
 
   let consumed = false;
@@ -74,7 +89,14 @@ export function readLaunch(
       consumed = true;
     }
   }
-  return { launch: { linkCode, attribution }, cleanHref: consumed ? url.toString() : null };
+  const launch: LaunchParams = { linkCode, attribution };
+  if (Object.keys(trackerDevices).length > 0) launch.trackerDevices = trackerDevices;
+  return { launch, cleanHref: consumed ? url.toString() : null };
+}
+
+/** Keep the install's first-touch attribution (it changes only while it has no campaign). */
+export function saveAttribution(store: KeyValueStore, attribution: Attribution): void {
+  store.set(ATTRIBUTION_KEY, JSON.stringify(attribution));
 }
 
 function sameSite(referrer: string, url: URL): boolean {

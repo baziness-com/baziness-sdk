@@ -1,6 +1,6 @@
 import type { BackendSession, GameBackend, SessionRequest } from './backend.js';
 import type { DeviceInfo } from './device.js';
-import type { LaunchParams } from './launch.js';
+import type { Attribution, LaunchParams } from './launch.js';
 
 /** Ask for a new token when the current one has less than this left. */
 const RENEW_BEFORE_MS = 60_000;
@@ -14,6 +14,7 @@ export class SessionManager {
   private current: BackendSession | null = null;
   private pending: Promise<BackendSession> | null = null;
   private launch: LaunchParams;
+  private requested = false;
   private readonly listeners = new Set<(session: BackendSession | null) => void>();
 
   constructor(
@@ -26,6 +27,16 @@ export class SessionManager {
 
   get session(): BackendSession | null {
     return this.current;
+  }
+
+  /** A session was asked for: attribution set from now on misses that request and goes to Baziness after it. */
+  get started(): boolean {
+    return this.requested;
+  }
+
+  /** The attribution every later session request carries (your server forwards it when it creates the player). */
+  useAttribution(attribution: Attribution): void {
+    this.launch = { ...this.launch, attribution };
   }
 
   /** A session with at least a minute left; `force` asks your server even when the token looks fine. */
@@ -55,6 +66,7 @@ export class SessionManager {
   }
 
   private async fetch(): Promise<BackendSession> {
+    this.requested = true;
     const request: SessionRequest = { device: this.device };
     if (this.launch.linkCode) request.linkCode = this.launch.linkCode;
     if (this.launch.attribution) request.attribution = this.launch.attribution;

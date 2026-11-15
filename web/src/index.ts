@@ -7,7 +7,7 @@ export type { BazinessEnvironment, EnvironmentUrls } from './environment.js';
 export { DeviceAnalytics, EVENT_NAME_PATTERN, SERVER_ONLY_EVENTS } from './analytics.js';
 export type { AdPlacement, DeviceAnalyticsOptions, PropValue, PurchaseGateway } from './analytics.js';
 export { InstallCampaign } from './campaign.js';
-export type { Campaign } from './campaign.js';
+export type { Campaign, RecordOutcome } from './campaign.js';
 export { CoinBalance, ReferralRewards } from './coins.js';
 export { BazinessPay } from './pay.js';
 export type { BazinessPayment } from './pay.js';

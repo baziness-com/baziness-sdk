@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.6.0] - 2026-11-15
+
+- **A campaign link code reported after the first session reaches Baziness**: `SetInstallReferrer`,
+  `SetCampaignAttribution` and `ReportTrackerAttribution` sent it as `campaignCode`, which the platform does
+  not read, so a `bz_lc` from AppMetrica's deferred deep link was lost when it came after the session. It is
+  sent as `linkCode` now.
+- `ReportTrackerDevice` docs: pass AppMetrica's `DeviceIdHash` (`StartupParamsKey.AppMetricaDeviceIDHash`); its
+  `DeviceId` is another value and never matches.
+
 ## [2.5.0] - 2026-11-11
 
 - **`BazinessSdk.ReportTrackerDevice(tracker, deviceId)`**: tell Baziness the id an attribution tracker

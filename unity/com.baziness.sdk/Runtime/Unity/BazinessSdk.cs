@@ -493,6 +493,9 @@ namespace Baziness
             await sessions.Get();
             // With no campaign in it, Baziness can still match the install by this device's fingerprint.
             var body = attribution.ToDictionary();
+            // The platform calls the campaign link code linkCode; campaignCode is the server SDKs' name.
+            body.Remove("campaignCode");
+            if (!string.IsNullOrEmpty(attribution.campaignCode)) body["linkCode"] = attribution.campaignCode;
             if (!string.IsNullOrEmpty(Device.model)) body["deviceModel"] = Device.model;
             if (!string.IsNullOrEmpty(Device.osVersion)) body["osVersion"] = Device.osVersion;
             var result = await http.Send("POST", apiBase + "/analytics/attribution", MiniJson.Serialize(body),
