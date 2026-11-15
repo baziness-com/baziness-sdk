@@ -1,7 +1,7 @@
 # Baziness SDK for Unity (`com.baziness.sdk`)
 
 Baziness for the **player's device** in a Unity game (2021.3+): Baziness pages in a built-in web view,
-the Gita coin balance, sign-in hand-over from other games (link codes in deep links), install
+the BaziCoin balance (formerly Gita coin), sign-in hand-over from other games (link codes in deep links), install
 attribution, device info and player analytics. It holds no secret: sessions and link codes come from
 your game server, which uses the Baziness server SDK (Node or Java).
 

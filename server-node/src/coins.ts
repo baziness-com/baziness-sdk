@@ -5,7 +5,7 @@ import type { WireResource } from './wire.js';
 
 export interface AddCoinsInput {
   userId: number;
-  /** Positive number of Gita coins. */
+  /** Positive number of BaziCoins. */
   amount: number;
   /**
    * What this payout **is**, e.g. `match:17`, `reward_claim:42`, `tutorial_gift`. The same payout
@@ -30,7 +30,7 @@ export interface AddCoinsResult {
   transactionId: string;
 }
 
-/** Gita coins (step 4): give coins to your players and read their balance. */
+/** BaziCoins (step 4): give coins to your players and read their balance. BaziCoin was formerly called Gita coin / GitaCoin: the same currency. */
 export class Coins {
   constructor(private readonly transport: Transport) {}
 
@@ -77,7 +77,7 @@ export class Coins {
     }
   }
 
-  /** A player's Gita coin balance. */
+  /** A player's BaziCoin balance. */
   async balance(userId: number): Promise<number> {
     const answer = await this.transport.request<WireResource>({
       operation: 'getCoin',

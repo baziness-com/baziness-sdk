@@ -13,7 +13,7 @@ async function playerGet(apiBase: string, path: string, token: TokenSource, fetc
   throw new Error(`Baziness: ${operation} unauthorized`);
 }
 
-/** The player's Gita coin balance, read with their own token. Giving coins is a server call. */
+/** The player's BaziCoin balance (formerly Gita coin / GitaCoin, the same currency), read with their own token. Giving coins is a server call. */
 export class CoinBalance {
   constructor(
     private readonly apiBase: string,

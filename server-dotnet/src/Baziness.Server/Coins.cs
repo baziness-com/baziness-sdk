@@ -12,7 +12,7 @@ namespace Baziness.Server;
 /// <param name="TransactionId">The payout's transaction id.</param>
 public sealed record AddCoinsResult(long? Credited, bool AlreadyCredited, string TransactionId);
 
-/// <summary>Gita coins (step 4): give coins to your players and read their balance.</summary>
+/// <summary>BaziCoins (step 4): give coins to your players and read their balance. BaziCoin was formerly called Gita coin / GitaCoin: the same currency.</summary>
 public sealed class Coins
 {
     private readonly Transport _transport;
@@ -76,7 +76,7 @@ public sealed class Coins
         }
     }
 
-    /// <summary>A player's Gita coin balance.</summary>
+    /// <summary>A player's BaziCoin balance.</summary>
     public async Task<long> BalanceAsync(long userId, CancellationToken cancellationToken = default)
     {
         var answer = await _transport.RequestAsync<WireResource>(

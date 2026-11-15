@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Baziness
 {
-    /// <summary>The player's Gita coin balance, read with their own token. Giving coins is a server call.</summary>
+    /// <summary>The player's BaziCoin balance (formerly Gita coin / GitaCoin, the same currency), read with their own token. Giving coins is a server call.</summary>
     public sealed class CoinBalance
     {
         private readonly IHttp http;

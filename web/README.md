@@ -1,7 +1,7 @@
 # @baziness/web
 
 Baziness for the **player's browser** in a web game: Baziness pages (sign-in, profile, the
-«انتخاب جایزه» reward shop, your game offer) in an overlay, the Gita coin balance, first-touch
+«انتخاب جایزه» reward shop, your game offer) in an overlay, the BaziCoin balance (formerly Gita coin), first-touch
 attribution (with your wrapper app's tracker: AppMetrica device id, deferred deep links), device info and
 player analytics. It holds no secret: sessions and link codes come
 from your game server, which uses `@baziness/server`.

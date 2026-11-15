@@ -6,7 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Gita coins (step 4): give coins to your players and read their balance. */
+/** BaziCoins (step 4): give coins to your players and read their balance. BaziCoin was formerly called Gita coin / GitaCoin: the same currency. */
 public final class Coins {
     /** The outcome of {@link #add}. */
     public static final class AddResult {
@@ -76,7 +76,7 @@ public final class Coins {
         }
     }
 
-    /** A player's Gita coin balance. */
+    /** A player's BaziCoin balance. */
     public long balance(long userId) {
         Map<String, Object> answer = Json.object(transport.request(
                 new Transport.Call("getCoin", "GET", "/client/get-coin/" + userId, null, true, true)));

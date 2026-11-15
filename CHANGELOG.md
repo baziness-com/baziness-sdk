@@ -6,6 +6,10 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- **Docs: the currency is called BaziCoin.** READMEs, package descriptions and doc comments say
+  BaziCoin where they said Gita coin; Gita coin, GitaCoin and KarizmaCoin are older names of the same
+  currency. No API or behaviour changes.
+
 ## [2.6.0] - 2026-11-15
 
 - **Web: the attribution calls Unity has**, for web games shipped inside an app (a WebView, Capacitor or a

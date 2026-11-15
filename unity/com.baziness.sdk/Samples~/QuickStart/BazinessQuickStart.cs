@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace Baziness.Samples
 {
     /// <summary>
-    /// The whole device side in one component: start the SDK, show the Gita coin balance, open the
+    /// The whole device side in one component: start the SDK, show the BaziCoin balance, open the
     /// reward page and report a gameplay event. Your game server provides the four routes of
     /// <see cref="HttpGameBackend"/> with the server SDK.
     /// </summary>

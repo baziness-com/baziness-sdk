@@ -16,12 +16,12 @@
     <PackageId>Baziness.Server</PackageId>
     <Version>2.6.0</Version>
     <Authors>Baziness</Authors>
-    <Description>Baziness platform SDK for .NET game servers: client auth, player sessions with long-lived tokens, link codes, Gita coins, purchases, Baziness Pay and trusted analytics.</Description>
+    <Description>Baziness platform SDK for .NET game servers: client auth, player sessions with long-lived tokens, link codes, BaziCoins, purchases, Baziness Pay and trusted analytics.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/baziness-com/baziness-sdk/tree/main/server-dotnet#readme</PackageProjectUrl>
     <PackageReleaseNotes>https://github.com/baziness-com/baziness-sdk/blob/main/CHANGELOG.md</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>baziness;game;server;sdk;gita;coins;analytics;payments</PackageTags>
+    <PackageTags>baziness;game;server;sdk;bazicoin;gita;coins;analytics;payments</PackageTags>
     <RepositoryUrl>https://github.com/baziness-com/baziness-sdk.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

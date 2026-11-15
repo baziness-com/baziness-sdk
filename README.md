@@ -3,8 +3,9 @@
 [![CI](https://github.com/baziness-com/baziness-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/baziness-com/baziness-sdk/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Everything a partner game needs to join Baziness: one account across games, Gita coins, Baziness
-pages, sponsor ads, purchases and growth analytics. Each package directory contains its setup and API guide.
+Everything a partner game needs to join Baziness: one account across games, BaziCoins (formerly Gita
+coins / GitaCoin / KarizmaCoin: the same currency), Baziness pages, sponsor ads, purchases and growth
+analytics. Each package directory contains its setup and API guide.
 This document explains how the SDKs fit together and how maintainers test and release them.
 
 | Package | For | Language | Folder |

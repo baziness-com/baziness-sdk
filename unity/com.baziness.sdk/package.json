@@ -2,7 +2,7 @@
   "name": "com.baziness.sdk",
   "version": "2.6.0",
   "displayName": "Baziness SDK",
-  "description": "Baziness platform for Unity games: Baziness pages (sign-in, profile, rewards) in a built-in web view (gree unity-webview, bundled), Gita coin balance, link-code sign-in from other games, install attribution, device info and player analytics. Your game server uses the Baziness server SDK.",
+  "description": "Baziness platform for Unity games: Baziness pages (sign-in, profile, rewards) in a built-in web view (gree unity-webview, bundled), BaziCoin balance, link-code sign-in from other games, install attribution, device info and player analytics. Your game server uses the Baziness server SDK.",
   "unity": "2021.3",
   "license": "Apache-2.0",
   "documentationUrl": "https://github.com/baziness-com/baziness-sdk/tree/main/unity/com.baziness.sdk#readme",
@@ -19,6 +19,7 @@
   },
   "keywords": [
     "baziness",
+    "bazicoin",
     "gita coin",
     "sso",
     "analytics",

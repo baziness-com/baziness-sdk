@@ -1,7 +1,7 @@
 # @baziness/server
 
 Baziness for your game **server** (Node 18+). It keeps the client secret, gives your players'
-devices their tokens and link codes, gives Gita coins, reports purchases and sends trusted
+devices their tokens and link codes, gives BaziCoins (formerly Gita coins), reports purchases and sends trusted
 analytics (sessions, device data, sign-ins, game events). It stores no player token: the client
 secret gets any of your players' tokens whenever one is needed (cached in memory).
 
